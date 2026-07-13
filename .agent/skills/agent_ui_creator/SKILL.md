@@ -138,4 +138,12 @@ Below is a complete, working reference widget template (`app/ui/widgets/contact_
     }
   ]
 }
+
+---
+
+## ⚠️ Data Binding & Variable Interpolation Rules
+
+When referencing dynamic data inside widget templates (e.g., text fields, image URLs, button action URLs):
+* **Use Flat Keys**: The React frontend (`DynamicWidget.tsx`) automatically unwraps/flattens dynamic payload namespaces (`data`, `response`, `result`, `widget_data`, etc.). Therefore, reference keys directly (e.g., use `{{image_url}}` instead of `{{data.image_url}}`).
+* **No Dot Notation**: The frontend's template interpolator matches variables using the regex `/\{\{\s*(\w+)\s*\}\}/g`. Because a dot (`.`) is not a word character (`\w`), the regex will fail to match placeholders containing dots, causing them to render literally in the DOM. Never use dots in template variable names.
 ```

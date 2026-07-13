@@ -1,0 +1,24 @@
+{
+  "type": "container",
+  "props": {
+    "className": "flex flex-col gap-2 p-4 bg-white rounded-lg border border-blue-200"
+  },
+  "children": [
+    {
+      "type": "text-input",
+      "props": {
+        "id": "otp_code",
+        "label": "Enter 6-digit Verification Code",
+        "placeholder": "123456"
+      }
+    },
+    {
+      "type": "button",
+      "props": {
+        "id": "submit_otp",
+        "label": "Verify OTP",
+        "variant": "primary"
+      }
+    }
+  ]
+}

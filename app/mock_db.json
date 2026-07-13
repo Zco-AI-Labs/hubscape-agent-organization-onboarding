@@ -1,0 +1,40 @@
+{
+  "active_session": false,
+  "leads": [
+    {
+      "id": "lead_1783932013",
+      "org_name": "infotest",
+      "org_description": "it is a software fir of having more than 45 years experince",
+      "org_email": "infotest@ail.co",
+      "org_phone": "8999098767",
+      "user_position": "manager",
+      "status": "ASSOCIATED",
+      "contact_email": "bijith@mail.com",
+      "contact_mobile": "8547554075",
+      "contact_name": "Bijith Gopi",
+      "created_at": "2026-07-13T08:40:13.843696+00:00",
+      "updated_at": "2026-07-13T08:41:39.561521+00:00"
+    }
+  ],
+  "registered_users": [
+    {
+      "mobile_number": "555-0199",
+      "full_name": "Alex Doe",
+      "email_address": "alex@apex.com"
+    },
+    {
+      "mobile_number": "8547554075",
+      "full_name": "Bijith Gopi",
+      "email_address": "bijith@mail.com"
+    }
+  ],
+  "active_otps": {},
+  "sales_alerts": [
+    {
+      "alert_id": "alert_1783932099",
+      "lead_id": "lead_1783932013",
+      "message": "New unverified lead has arrived for organization 'infotest'.",
+      "timestamp": "2026-07-13T08:41:39.561577+00:00"
+    }
+  ]
+}

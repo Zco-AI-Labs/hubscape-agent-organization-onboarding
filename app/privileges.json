@@ -1,7 +1,7 @@
 {
   "privileges": {
     "1": {
-      "name": "ADMIN",
+      "name": "Custom Agent Manager",
       "description": "Allows the full capability of the agent",
       "tools": []
     }

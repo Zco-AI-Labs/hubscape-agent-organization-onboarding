@@ -1,0 +1,24 @@
+{
+  "type": "container",
+  "props": {
+    "className": "flex flex-col gap-2 p-4 bg-white rounded-lg border border-slate-200"
+  },
+  "children": [
+    {
+      "type": "text-input",
+      "props": {
+        "id": "mobile_number",
+        "label": "Personal Contact Mobile Number",
+        "placeholder": "555-0199"
+      }
+    },
+    {
+      "type": "button",
+      "props": {
+        "id": "submit_mobile",
+        "label": "Check Account",
+        "variant": "primary"
+      }
+    }
+  ]
+}

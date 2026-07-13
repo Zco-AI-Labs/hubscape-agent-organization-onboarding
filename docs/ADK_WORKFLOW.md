@@ -39,12 +39,13 @@ Request a **Developer Personal Access Token (PAT)**, an **Agent UUID**, and a **
 
 To implement the agent's functionality:
 
-1. **Agent Package Structure (`app/`)**:
-   * **`agent.py`**: Instantiate `google.adk.agents.Agent` and import/register the tools from `scripts/`. Set the agent ID, name, and description here.
-   * **`SKILL.md`**: Define your system instruction string.
-   * **`scripts/`**: Implement tool functions in Python. Type hints and docstrings are parsed to build Gemini schemas automatically.
-   * **`ui/widgets/`**: Place any custom JSON templates for Lego UI widget rendering here.
-   * **`pyproject.toml`**: List package dependencies and python configs.
+1. **Workspace & Agent Structure**:
+   * **`pyproject.toml`**: List package dependencies and python configs (located at the workspace root).
+   * **`app/`** (Agent package folder):
+     * **`agent.py`**: Instantiate `google.adk.Agent` and load tools dynamically from `scripts/` using `load_local_tools()`. Set the agent ID, name, and description here.
+     * **`SKILL.md`**: Define your system instruction string (prompts).
+     * **`scripts/`**: Place standalone python files here to implement tool functions. Filenames must match function names. Type hints and docstrings are parsed to build Gemini schemas automatically.
+     * **`ui/widgets/`**: Place any custom JSON templates for Lego UI widget rendering here.
 
 ### Step 6: Test and Validate
 1. Talk to your agent locally via the Holodeck client.

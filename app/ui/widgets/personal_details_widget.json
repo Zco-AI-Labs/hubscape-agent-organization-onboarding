@@ -1,0 +1,32 @@
+{
+  "type": "container",
+  "props": {
+    "className": "flex flex-col gap-4 p-4 bg-white rounded-lg border border-pink-100"
+  },
+  "children": [
+    {
+      "type": "text-input",
+      "props": {
+        "id": "full_name",
+        "label": "Contact Person Full Name",
+        "placeholder": "Alex Doe"
+      }
+    },
+    {
+      "type": "text-input",
+      "props": {
+        "id": "email_address",
+        "label": "Contact Email Address",
+        "placeholder": "alex@apex.com"
+      }
+    },
+    {
+      "type": "button",
+      "props": {
+        "id": "submit_personal",
+        "label": "Submit Contact Details",
+        "variant": "primary"
+      }
+    }
+  ]
+}

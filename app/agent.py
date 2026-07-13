@@ -1,9 +1,12 @@
 import os
 # Force regional Vertex AI routing unconditionally
 os.environ.pop("GOOGLE_GENAI_USE_ENTERPRISE", None)
-os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "True"
-os.environ.pop("GEMINI_API_KEY", None)
-os.environ.pop("GOOGLE_API_KEY", None)
+# os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "True"
+os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "False"
+
+if os.environ.get("GOOGLE_GENAI_USE_VERTEXAI") == "True":
+    os.environ.pop("GEMINI_API_KEY", None)
+    os.environ.pop("GOOGLE_API_KEY", None)
 import asyncio
 import importlib.util
 import re
@@ -30,8 +33,8 @@ from app.app_utils.vertex_gemini import get_model
 
 root_agent = AdkAgent(
     model=get_model("gemini-2.5-flash"),
-    name="custom_agent",
-    description="Managed GEAP agent.",
+    name="organization_subscription_agent",
+    description="Global Organization Subscription Agent.",
     instruction=system_instruction,
     tools=tools
 )

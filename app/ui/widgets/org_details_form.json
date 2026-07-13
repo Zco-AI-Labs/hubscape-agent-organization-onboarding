@@ -1,0 +1,61 @@
+{
+  "type": "container",
+  "props": {
+    "className": "flex flex-col gap-4 p-4 bg-white rounded-lg shadow-md border border-indigo-100"
+  },
+  "children": [
+    {
+      "type": "text-input",
+      "props": {
+        "id": "org_name",
+        "label": "Organization Legal Name",
+        "placeholder": "Apex Innovations"
+      }
+    },
+    {
+      "type": "textarea",
+      "props": {
+        "id": "org_description",
+        "label": "Brief Description",
+        "placeholder": "Robotic research and development"
+      }
+    },
+    {
+      "type": "text-input",
+      "props": {
+        "id": "org_email",
+        "label": "Organization Email",
+        "placeholder": "info@apex.com"
+      }
+    },
+    {
+      "type": "text-input",
+      "props": {
+        "id": "org_phone",
+        "label": "Organization Phone",
+        "placeholder": "555-0199"
+      }
+    },
+    {
+      "type": "dropdown",
+      "props": {
+        "id": "user_position",
+        "label": "Your Position/Title in Organization",
+        "options": [
+          {"label": "President", "value": "President"},
+          {"label": "CEO", "value": "CEO"},
+          {"label": "CFO", "value": "CFO"},
+          {"label": "IT Manager", "value": "IT Manager"}
+        ]
+      }
+    },
+    {
+      "type": "button",
+      "props": {
+        "id": "submit_org_details",
+        "label": "Submit Details",
+        "variant": "primary"
+      }
+    }
+  ]
+}

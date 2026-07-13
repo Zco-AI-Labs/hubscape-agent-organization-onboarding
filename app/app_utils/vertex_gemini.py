@@ -34,21 +34,29 @@ class VertexGemini(Gemini):
                 del self._clients_by_loop[lp]
                 
         if loop not in self._clients_by_loop:
-            from app.app_utils.env_resolver import get_project_id, get_region
-            project = get_project_id()
-            location = get_region()
-            os.environ.pop("GEMINI_API_KEY", None)
-            os.environ.pop("GOOGLE_API_KEY", None)
+            use_vertex = os.environ.get("GOOGLE_GENAI_USE_VERTEXAI") == "True"
+            gemini_api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
             
-            import google.auth
-            credentials, _ = google.auth.default()
-            
-            self._clients_by_loop[loop] = Client(
-                vertexai=True,
-                project=project,
-                location=location,
-                credentials=credentials
-            )
+            if not use_vertex and gemini_api_key:
+                self._clients_by_loop[loop] = Client(
+                    api_key=gemini_api_key
+                )
+            else:
+                from app.app_utils.env_resolver import get_project_id, get_region
+                project = get_project_id()
+                location = get_region()
+                os.environ.pop("GEMINI_API_KEY", None)
+                os.environ.pop("GOOGLE_API_KEY", None)
+                
+                import google.auth
+                credentials, _ = google.auth.default()
+                
+                self._clients_by_loop[loop] = Client(
+                    vertexai=True,
+                    project=project,
+                    location=location,
+                    credentials=credentials
+                )
             
         return self._clients_by_loop[loop]
 
@@ -73,28 +81,36 @@ class VertexGemini(Gemini):
                 del self._live_clients_by_loop[lp]
                 
         if loop not in self._live_clients_by_loop:
-            from app.app_utils.env_resolver import get_project_id, get_region
-            project = get_project_id()
-            location = get_region()
-            base_url, _ = self._base_url_and_api_version
+            use_vertex = os.environ.get("GOOGLE_GENAI_USE_VERTEXAI") == "True"
+            gemini_api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
             
-            os.environ.pop("GEMINI_API_KEY", None)
-            os.environ.pop("GOOGLE_API_KEY", None)
-            
-            import google.auth
-            credentials, _ = google.auth.default()
-            
-            self._live_clients_by_loop[loop] = Client(
-                vertexai=True,
-                project=project,
-                location=location,
-                credentials=credentials,
-                http_options=types.HttpOptions(
-                    headers=self._tracking_headers(),
-                    api_version=self._live_api_version,
-                    base_url=base_url,
+            if not use_vertex and gemini_api_key:
+                self._live_clients_by_loop[loop] = Client(
+                    api_key=gemini_api_key
                 )
-            )
+            else:
+                from app.app_utils.env_resolver import get_project_id, get_region
+                project = get_project_id()
+                location = get_region()
+                base_url, _ = self._base_url_and_api_version
+                
+                os.environ.pop("GEMINI_API_KEY", None)
+                os.environ.pop("GOOGLE_API_KEY", None)
+                
+                import google.auth
+                credentials, _ = google.auth.default()
+                
+                self._live_clients_by_loop[loop] = Client(
+                    vertexai=True,
+                    project=project,
+                    location=location,
+                    credentials=credentials,
+                    http_options=types.HttpOptions(
+                        headers=self._tracking_headers(),
+                        api_version=self._live_api_version,
+                        base_url=base_url,
+                    )
+                )
             
         return self._live_clients_by_loop[loop]
 
@@ -106,8 +122,9 @@ class VertexGemini(Gemini):
         This forces use of the synchronous 'requests'-based Client, which correctly
         leverages Mutual TLS (mTLS) in Vertex AI Reasoning Engine / Workload Identity.
         """
-        os.environ.pop("GEMINI_API_KEY", None)
-        os.environ.pop("GOOGLE_API_KEY", None)
+        if os.environ.get("GOOGLE_GENAI_USE_VERTEXAI") == "True":
+            os.environ.pop("GEMINI_API_KEY", None)
+            os.environ.pop("GOOGLE_API_KEY", None)
         await self._preprocess_request(llm_request)
         self._maybe_append_user_content(llm_request)
 

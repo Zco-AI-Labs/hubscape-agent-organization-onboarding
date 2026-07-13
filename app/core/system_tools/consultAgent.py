@@ -12,6 +12,7 @@ from google.adk.agents.invocation_context import InvocationContext
 
 logger = logging.getLogger(__name__)
 
+@app.core.hubscape_adk.require_tool_privilege
 async def consultAgent(agentId: str, query: str) -> str:
     """
     Consults a specialized subagent (e.g. todo_agent, knowledge_agent, admin_ui_agent).
@@ -77,19 +78,7 @@ async def consultAgent(agentId: str, query: str) -> str:
             
         # 2. Get GCP access token
         def get_gcp_access_token() -> str:
-            import httpx as httpx_sync
-            # Try to fetch from the local metadata server (correct for remote container)
-            try:
-                meta_url = "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token"
-                resp = httpx_sync.get(meta_url, headers={"Metadata-Flavor": "Google"}, timeout=2.0)
-                if resp.status_code == 200:
-                    tok = resp.json().get("access_token")
-                    if tok:
-                        return tok
-            except Exception:
-                pass
-
-            # Fallback to google.auth.default (correct for local development)
+            # Natively resolves and exchanges Workload Identity / ADC credentials
             credentials, _ = google.auth.default(
                 scopes=["https://www.googleapis.com/auth/cloud-platform"]
             )
@@ -119,7 +108,10 @@ async def consultAgent(agentId: str, query: str) -> str:
                 "hub_id": ctx.auth.hub_id,
                 "mode": raw_ctx.get("mode"),
                 "accessible_agents": accessible_agents,
-                "depth": current_depth + 1
+                "depth": current_depth + 1,
+                "backend_url": raw_ctx.get("backend_url"),
+                "capability_token": raw_ctx.get("capability_token"),
+                "storageBucket": raw_ctx.get("storageBucket")
             }
 
         # Normalize the agent ID to a valid Python identifier

@@ -1,0 +1,25 @@
+{
+  "type": "card",
+  "props": {
+    "className": "p-4 bg-green-50 rounded-lg border border-green-200"
+  },
+  "children": [
+    {
+      "type": "title",
+      "props": {
+        "text": "Organization Summary Card"
+      }
+    },
+    {
+      "type": "metadata-grid",
+      "props": {
+        "items": [
+          {"label": "Legal Name", "id": "summary_name"},
+          {"label": "Description", "id": "summary_description"},
+          {"label": "Org Email", "id": "summary_email"},
+          {"label": "Org Phone", "id": "summary_phone"}
+        ]
+      }
+    }
+  ]
+}

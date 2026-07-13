@@ -4,6 +4,16 @@ This catalog outlines the available **Lego UI elements** supported by the Hubsca
 
 ---
 
+## 🎨 Styling Systems: Tailwind CSS vs. Explicit Props
+
+Hubscape UI components support two main ways to control styling and layout:
+1. **Tailwind Utility Classes (`className`):** Recommended for custom styling. You can pass standard Tailwind utility classes under `props.className` (e.g., `"props": { "className": "flex flex-col gap-4 p-4" }`).
+2. **Explicit Layout Props:** For standard layouts, components support explicit keys inside `props` (e.g., `"direction": "vertical"`, `"gap": "sm"`, `"padding": "md"` for containers; `"size": "lg"`, `"weight": "bold"` for text; `"required": true`, `"multiline": true` for input fields). 
+
+The examples in this catalog focus on the flexible Tailwind-based `className` styling system, but either approach (or a mixture of both) will render correctly. Refer to [contact_form.json](file:///Users/rajvekeria/Documents/GitHub/hubscape-agent-template/app/ui/widgets/contact_form.json) for a demonstration of explicit layout props.
+
+---
+
 ## 🏗️ 1. Container (`container`)
 Renders a container box to group children. Use Tailwind classes to design grids, flexboxes, margins, and backgrounds.
 
