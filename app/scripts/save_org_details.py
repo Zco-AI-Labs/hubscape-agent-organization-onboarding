@@ -22,36 +22,18 @@ async def save_org_details(
         org_phone: Contact phone number for the organization.
         user_position: Position or title of the user onboarding the organization.
     """
-    ctx = get_context()
-    if os.path.isdir("app"):
-        db_path = "app/mock_db.json"
-    else:
-        runtime_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        db_path = os.path.join(runtime_dir, "mock_db.json")
-    
-    # Initialize DB if missing
-    if not os.path.exists(db_path):
-        data = {
-            "active_session": False,
-            "leads": [],
-            "registered_users": [
-                {
-                    "mobile_number": "555-0199",
-                    "full_name": "Alex Doe",
-                    "email_address": "alex@apex.com"
-                }
-            ],
-            "active_otps": {},
-            "sales_alerts": []
+    import re
+    email_pattern = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
+    if not re.match(email_pattern, org_email.strip()):
+        return {
+            "status": "error",
+            "message": "Invalid organization email format. Please provide a valid email address (e.g. name@domain.com)."
         }
-    else:
-        with open(db_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            
+
+    ctx = get_context()
     org_id = f"lead_{int(time.time())}"
     
-    new_lead = {
-        "id": org_id,
+    lead_data = {
         "org_name": org_name,
         "org_description": org_description,
         "org_email": org_email,
@@ -60,14 +42,15 @@ async def save_org_details(
         "status": "UNVERIFIED",
         "contact_email": None,
         "contact_mobile": None,
-        "contact_name": None,
-        "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+        "contact_name": None
     }
     
-    data["leads"].append(new_lead)
-    
-    with open(db_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+    ctx.save(
+        scope="platform",
+        collection_name="leads",
+        doc_id=org_id,
+        data=lead_data
+    )
         
     return {
         "status": "success",

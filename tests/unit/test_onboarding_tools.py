@@ -12,6 +12,11 @@ from app.scripts.send_mobile_otp import send_mobile_otp
 from app.scripts.verify_mobile_otp import verify_mobile_otp
 from app.scripts.associate_contact_and_alert import associate_contact_and_alert
 
+@pytest.fixture(autouse=True)
+def mock_db(mock_adk_db):
+    """Enable the in-memory database mock for tests in this file."""
+    yield mock_adk_db
+
 @pytest.mark.asyncio
 async def test_save_org_details() -> None:
     # Set up dummy context
@@ -27,14 +32,11 @@ async def test_save_org_details() -> None:
         assert res["status"] == "success"
         assert "org_id" in res
         
-        # Verify saved in mock_db.json
-        db_path = "app/mock_db.json"
-        assert os.path.exists(db_path)
-        with open(db_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        assert len(data["leads"]) == 1
-        assert data["leads"][0]["org_name"] == "Apex Innovations"
-        assert data["leads"][0]["status"] == "UNVERIFIED"
+        # Verify saved via context
+        leads = ctx.list(scope="platform", collection_name="leads")
+        assert len(leads) == 1
+        assert leads[0]["org_name"] == "Apex Innovations"
+        assert leads[0]["status"] == "UNVERIFIED"
 
 @pytest.mark.asyncio
 async def test_check_session_valid() -> None:
@@ -104,14 +106,12 @@ async def test_associate_contact_and_alert() -> None:
         assert assoc_res["status"] == "success"
         
         # Check DB updates
-        db_path = "app/mock_db.json"
-        with open(db_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        
-        lead = data["leads"][0]
+        lead = ctx.get(scope="platform", collection_name="leads", doc_id=org_id)
         assert lead["status"] == "ASSOCIATED"
         assert lead["contact_email"] == "alex@apex.com"
-        assert len(data["sales_alerts"]) == 1
+        
+        alerts = ctx.list(scope="platform", collection_name="sales_alerts")
+        assert len(alerts) == 1
         
         # Verify show_widget was called
         ctx.show_widget.assert_called_once_with(
@@ -141,3 +141,41 @@ async def test_mobile_normalization() -> None:
         
         verify_res = await verify_mobile_otp("555-0199", "123456")
         assert verify_res["valid"] is True
+
+@pytest.mark.asyncio
+async def test_save_org_details_invalid_email() -> None:
+    ctx = RemoteContext(user_id="guest_user")
+    with context_session(ctx):
+        res = await save_org_details(
+            org_name="Apex Innovations",
+            org_description="Robotic research",
+            org_email="invalid_email",
+            org_phone="555-0199",
+            user_position="CEO"
+        )
+        assert res["status"] == "error"
+        assert "Invalid organization email format" in res["message"]
+
+@pytest.mark.asyncio
+async def test_associate_contact_invalid_email() -> None:
+    ctx = RemoteContext(user_id="guest_user")
+    with context_session(ctx):
+        # Save a valid org first
+        org_res = await save_org_details(
+            org_name="Apex Innovations",
+            org_description="Robotics",
+            org_email="info@apex.com",
+            org_phone="555-0199",
+            user_position="CEO"
+        )
+        org_id = org_res["org_id"]
+        
+        # Call with invalid contact email
+        res = await associate_contact_and_alert(
+            org_id=org_id,
+            contact_email="invalid_contact_email",
+            contact_mobile="555-0199",
+            full_name="Alex Doe"
+        )
+        assert res["status"] == "error"
+        assert "Invalid contact email format" in res["message"]

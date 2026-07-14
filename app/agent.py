@@ -47,5 +47,5 @@ agent_app = GEAPAgentWrapper(root_agent)
 from google.adk.apps import App
 app = App(
     root_agent=root_agent,
-    name="app",
+    name="organization-onboarding-agent",
 )

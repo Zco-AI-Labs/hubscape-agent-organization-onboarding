@@ -11,40 +11,41 @@ async def check_mobile_exist(mobile_number: str) -> dict:
         mobile_number: The personal mobile number to check (e.g. 555-0199).
     """
     ctx = get_context()
-    if os.path.isdir("app"):
-        db_path = "app/mock_db.json"
-    else:
-        runtime_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        db_path = os.path.join(runtime_dir, "mock_db.json")
-    
     def normalize_phone(num: str) -> str:
         clean = "".join(filter(str.isdigit, num))
         if (len(clean) == 11 or len(clean) == 8) and clean.startswith("1"):
             clean = clean[1:]
         return clean
-
-    if os.path.exists(db_path):
-        with open(db_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            input_num = normalize_phone(mobile_number)
-            for user in data.get("registered_users", []):
-                db_num = normalize_phone(user.get("mobile_number", ""))
-                if db_num == input_num:
-                    linked_org = None
-                    for lead in data.get("leads", []):
-                        lead_num = normalize_phone(lead.get("contact_mobile") or "")
-                        if lead_num == input_num or (lead.get("contact_email") and lead.get("contact_email") == user.get("email_address")):
-                            linked_org = {
-                                "org_name": lead.get("org_name"),
-                                "status": lead.get("status")
-                            }
-                            break
-                    return {
-                        "exists": True,
-                        "user": user,
-                        "linked_organization": linked_org
-                    }
-                    
+    
+    input_num = normalize_phone(mobile_number)
+    user = ctx.get(scope="platform", collection_name="registered_users", doc_id=input_num)
+    
+    if not user:
+        user_records = ctx.list(scope="platform", collection_name="registered_users")
+        for u in user_records:
+            if normalize_phone(u.get("mobile_number", "")) == input_num:
+                user = u
+                break
+                
+    if user:
+        linked_orgs = []
+        leads = ctx.list(scope="platform", collection_name="leads")
+        for lead in leads:
+            lead_num = normalize_phone(lead.get("contact_mobile") or "")
+            if lead_num == input_num or (lead.get("contact_email") and lead.get("contact_email") == user.get("email_address")):
+                linked_orgs.append({
+                    "org_name": lead.get("org_name"),
+                    "status": lead.get("status")
+                })
+        
+        primary_org = linked_orgs[0] if linked_orgs else None
+        return {
+            "exists": True,
+            "user": user,
+            "linked_organization": primary_org,
+            "linked_organizations": linked_orgs
+        }
+        
     return {
         "exists": False
     }
