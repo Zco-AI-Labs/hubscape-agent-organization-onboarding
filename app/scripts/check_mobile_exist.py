@@ -10,8 +10,17 @@ async def check_mobile_exist(mobile_number: str) -> dict:
     Args:
         mobile_number: The personal mobile number to check (e.g. 555-0199).
     """
+    clean_phone = "".join(filter(str.isdigit, mobile_number))
+    if not (len(clean_phone) >= 10 or len(clean_phone) in (7, 8)):
+        return {
+            "exists": False
+        }
+
     ctx = get_context()
     def normalize_phone(num: str) -> str:
+        """
+        Helper to normalize formatting by extracting digits and stripping country codes.
+        """
         clean = "".join(filter(str.isdigit, num))
         if (len(clean) == 11 or len(clean) == 8) and clean.startswith("1"):
             clean = clean[1:]

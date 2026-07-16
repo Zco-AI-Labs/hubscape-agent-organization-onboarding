@@ -61,6 +61,9 @@ async def check_session() -> dict:
                 break
         
         def normalize_phone(num: str) -> str:
+            """
+            Helper to normalize formatting by extracting digits and stripping country codes.
+            """
             clean = "".join(filter(str.isdigit, num))
             if (len(clean) == 11 or len(clean) == 8) and clean.startswith("1"):
                 clean = clean[1:]

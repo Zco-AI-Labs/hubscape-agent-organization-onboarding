@@ -10,29 +10,22 @@ async def send_mobile_otp(mobile_number: str) -> dict:
     Args:
         mobile_number: The personal mobile number to verify (e.g. 555-0199).
     """
+    clean_phone = "".join(filter(str.isdigit, mobile_number))
+    if not (len(clean_phone) >= 10 or len(clean_phone) in (7, 8)):
+        return {
+            "status": "error",
+            "message": "Invalid mobile number format. Please provide a valid phone number (e.g. 555-019-9000)."
+        }
+
     ctx = get_context()
-    def normalize_phone(num: str) -> str:
-        clean = "".join(filter(str.isdigit, num))
-        if (len(clean) == 11 or len(clean) == 8) and clean.startswith("1"):
-            clean = clean[1:]
-        return clean
-    clean_number = normalize_phone(mobile_number)
-    if "0199" in clean_number:
-        code = "123456"
-    elif "9999" in clean_number:
-        code = "987654"
-    else:
-        code = "123456"
-        
-    ctx.save(
-        scope="platform",
-        collection_name="active_otps",
-        doc_id=clean_number,
-        data={"otp_code": code}
-    )
-            
-    print(f"📡 [OTP GATEWAY] Sent verification code {code} to mobile {clean_number}.")
+    res = ctx.send_otp(mobile_number)
     
+    if not res.get("success"):
+        return {
+            "status": "error",
+            "message": res.get("message") or "Failed to send verification code."
+        }
+        
     return {
         "status": "success",
         "message": f"6-digit verification code successfully sent to mobile number {mobile_number}."

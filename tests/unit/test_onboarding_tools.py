@@ -12,10 +12,89 @@ from app.scripts.send_mobile_otp import send_mobile_otp
 from app.scripts.verify_mobile_otp import verify_mobile_otp
 from app.scripts.associate_contact_and_alert import associate_contact_and_alert
 
+# Mock default GCP credentials and project settings
+os.environ["GOOGLE_CLOUD_PROJECT"] = "dummy-project"
+os.environ["GOOGLE_CLOUD_LOCATION"] = "us-central1"
+
+import google.auth
+mock_creds = MagicMock()
+mock_creds.token = "dummy_token"
+mock_creds.valid = True
+mock_creds.service_account_email = "dummy@google.com"
+mock_creds.requires_scopes = False
+google.auth.default = MagicMock(return_value=(mock_creds, "dummy-project"))
+
 @pytest.fixture(autouse=True)
-def mock_db(mock_adk_db):
-    """Enable the in-memory database mock for tests in this file."""
-    yield mock_adk_db
+def mock_db():
+    """In-memory database isolation mock for all ADK RemoteContext CRUD actions."""
+    db = {}
+    
+    # Default registered users setup for both agent IDs
+    for agent_id in ["organization_subscription_agent", "organization-onboarding-agent", "default_agent"]:
+        db[f"agents/{agent_id}/agent_data/platform/registered_users/5550199"] = {
+            "mobile_number": "555-0199",
+            "full_name": "Alex Doe",
+            "email_address": "alex@apex.com",
+            "version": 1
+        }
+        db[f"agents/{agent_id}/agent_data/platform/session_config/override"] = {
+            "active_session": False,
+            "version": 1
+        }
+
+    def custom_save(self, scope: str, collection_name: str, doc_id: str, data: dict) -> dict:
+        path = self.get_agent_db_path(scope, collection_name, doc_id)
+        import datetime
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        user_id = self.auth.get_user_id()
+        
+        payload = data.copy()
+        if path not in db:
+            payload.update({
+                "created_at": now,
+                "created_by": user_id,
+                "updated_at": now,
+                "updated_by": user_id,
+                "version": 1
+            })
+        else:
+            current_data = db[path]
+            current_version = current_data.get("version", 0)
+            payload.update({
+                "created_at": current_data.get("created_at"),
+                "created_by": current_data.get("created_by"),
+                "updated_at": now,
+                "updated_by": user_id,
+                "version": current_version + 1
+            })
+        
+        db[path] = payload
+        return payload
+
+    def custom_get(self, scope: str, collection_name: str, doc_id: str) -> dict:
+        path = self.get_agent_db_path(scope, collection_name, doc_id)
+        return db.get(path)
+
+    def custom_list(self, scope: str, collection_name: str) -> list:
+        prefix = f"agents/{self.agent_id}/agent_data/{scope}/{collection_name}"
+        results = []
+        for path, val in db.items():
+            if path.startswith(prefix):
+                results.append(val)
+        return results
+
+    def custom_delete(self, scope: str, collection_name: str, doc_id: str) -> bool:
+        path = self.get_agent_db_path(scope, collection_name, doc_id)
+        if path in db:
+            del db[path]
+            return True
+        return False
+
+    with patch.object(RemoteContext, "save", new=custom_save), \
+         patch.object(RemoteContext, "get", new=custom_get), \
+         patch.object(RemoteContext, "list", new=custom_list), \
+         patch.object(RemoteContext, "delete", new=custom_delete):
+        yield db
 
 @pytest.mark.asyncio
 async def test_save_org_details() -> None:
@@ -179,3 +258,57 @@ async def test_associate_contact_invalid_email() -> None:
         )
         assert res["status"] == "error"
         assert "Invalid contact email format" in res["message"]
+
+@pytest.mark.asyncio
+async def test_save_org_details_invalid_phone() -> None:
+    ctx = RemoteContext(user_id="guest_user")
+    with context_session(ctx):
+        res = await save_org_details(
+            org_name="Apex Innovations",
+            org_description="Robotic research",
+            org_email="info@apex.com",
+            org_phone="12345",
+            user_position="CEO"
+        )
+        assert res["status"] == "error"
+        assert "Invalid organization phone format" in res["message"]
+
+@pytest.mark.asyncio
+async def test_associate_contact_invalid_phone() -> None:
+    ctx = RemoteContext(user_id="guest_user")
+    with context_session(ctx):
+        # Save a valid org first
+        org_res = await save_org_details(
+            org_name="Apex Innovations",
+            org_description="Robotics",
+            org_email="info@apex.com",
+            org_phone="555-0199",
+            user_position="CEO"
+        )
+        org_id = org_res["org_id"]
+        
+        # Call with invalid contact phone
+        res = await associate_contact_and_alert(
+            org_id=org_id,
+            contact_email="alex@apex.com",
+            contact_mobile="12345",
+            full_name="Alex Doe"
+        )
+        assert res["status"] == "error"
+        assert "Invalid contact mobile format" in res["message"]
+
+@pytest.mark.asyncio
+async def test_send_otp_invalid_phone() -> None:
+    ctx = RemoteContext(user_id="guest_user")
+    with context_session(ctx):
+        res = await send_mobile_otp("12345")
+        assert res["status"] == "error"
+        assert "Invalid mobile number format" in res["message"]
+
+@pytest.mark.asyncio
+async def test_verify_otp_invalid_phone() -> None:
+    ctx = RemoteContext(user_id="guest_user")
+    with context_session(ctx):
+        res = await verify_mobile_otp("12345", "123456")
+        assert res["valid"] is False
+        assert "Invalid mobile number format" in res["message"]

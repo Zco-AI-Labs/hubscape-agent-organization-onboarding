@@ -3,7 +3,14 @@
     "1": {
       "name": "Custom Agent Manager",
       "description": "Allows the full capability of the agent",
-      "tools": []
+      "tools": [
+        "save_org_details",
+        "check_session",
+        "check_mobile_exist",
+        "send_mobile_otp",
+        "verify_mobile_otp",
+        "associate_contact_and_alert"
+      ]
     }
   }
 }

@@ -28,6 +28,13 @@ async def associate_contact_and_alert(
             "status": "error",
             "message": "Invalid contact email format. Please provide a valid email address (e.g. name@domain.com)."
         }
+        
+    clean_phone = "".join(filter(str.isdigit, contact_mobile))
+    if not (len(clean_phone) >= 10 or len(clean_phone) in (7, 8)):
+        return {
+            "status": "error",
+            "message": "Invalid contact mobile format. Please provide a valid phone number (e.g. 555-019-9000)."
+        }
 
     ctx = get_context()
     # Find lead
@@ -36,6 +43,9 @@ async def associate_contact_and_alert(
         return {"status": "error", "message": f"Lead record {org_id} not found."}
         
     def normalize_phone(num: str) -> str:
+        """
+        Helper to normalize formatting by extracting digits and stripping country codes.
+        """
         clean = "".join(filter(str.isdigit, num))
         if (len(clean) == 11 or len(clean) == 8) and clean.startswith("1"):
             clean = clean[1:]

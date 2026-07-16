@@ -29,6 +29,13 @@ async def save_org_details(
             "status": "error",
             "message": "Invalid organization email format. Please provide a valid email address (e.g. name@domain.com)."
         }
+        
+    clean_phone = "".join(filter(str.isdigit, org_phone))
+    if not (len(clean_phone) >= 10 or len(clean_phone) in (7, 8)):
+        return {
+            "status": "error",
+            "message": "Invalid organization phone format. Please provide a valid phone number (e.g. 555-019-9000)."
+        }
 
     ctx = get_context()
     org_id = f"lead_{int(time.time())}"

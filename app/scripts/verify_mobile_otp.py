@@ -11,20 +11,17 @@ async def verify_mobile_otp(mobile_number: str, otp_code: str) -> dict:
         mobile_number: The personal mobile number associated with the code.
         otp_code: The 6-digit verification code.
     """
-    ctx = get_context()
-    def normalize_phone(num: str) -> str:
-        clean = "".join(filter(str.isdigit, num))
-        if (len(clean) == 11 or len(clean) == 8) and clean.startswith("1"):
-            clean = clean[1:]
-        return clean
+    clean_phone = "".join(filter(str.isdigit, mobile_number))
+    if not (len(clean_phone) >= 10 or len(clean_phone) in (7, 8)):
+        return {
+            "valid": False,
+            "message": "Invalid mobile number format. Please provide a valid phone number (e.g. 555-019-9000)."
+        }
 
-    clean_number = normalize_phone(mobile_number)
+    ctx = get_context()
+    res = ctx.verify_otp(mobile_number, otp_code)
     
-    otp_doc = ctx.get(scope="platform", collection_name="active_otps", doc_id=clean_number)
-    saved_code = otp_doc.get("otp_code") if otp_doc else None
-    
-    if saved_code and saved_code == otp_code:
-        ctx.delete(scope="platform", collection_name="active_otps", doc_id=clean_number)
+    if res.get("success"):
         return {
             "valid": True,
             "message": "OTP verification successful."
