@@ -30,10 +30,14 @@ async def associate_contact_and_alert(
         }
         
     clean_phone = "".join(filter(str.isdigit, contact_mobile))
-    if not (len(clean_phone) >= 10 or len(clean_phone) in (7, 8)):
+    has_country = True
+    if len(clean_phone) >= 10:
+        has_country = contact_mobile.strip().startswith('+')
+        
+    if not (len(clean_phone) >= 10 or len(clean_phone) in (7, 8)) or not has_country:
         return {
             "status": "error",
-            "message": "Invalid contact mobile format. Please provide a valid phone number (e.g. 555-019-9000)."
+            "message": "Invalid contact mobile format. Please include your country code starting with '+' (e.g. +919876543210 or +15550199000)."
         }
 
     ctx = get_context()

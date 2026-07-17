@@ -11,7 +11,11 @@ async def check_mobile_exist(mobile_number: str) -> dict:
         mobile_number: The personal mobile number to check (e.g. 555-0199).
     """
     clean_phone = "".join(filter(str.isdigit, mobile_number))
-    if not (len(clean_phone) >= 10 or len(clean_phone) in (7, 8)):
+    has_country = True
+    if len(clean_phone) >= 10:
+        has_country = mobile_number.strip().startswith('+')
+        
+    if not (len(clean_phone) >= 10 or len(clean_phone) in (7, 8)) or not has_country:
         return {
             "exists": False
         }

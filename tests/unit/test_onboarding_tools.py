@@ -312,3 +312,33 @@ async def test_verify_otp_invalid_phone() -> None:
         res = await verify_mobile_otp("12345", "123456")
         assert res["valid"] is False
         assert "Invalid mobile number format" in res["message"]
+
+@pytest.mark.asyncio
+async def test_phone_missing_country_code_fails() -> None:
+    ctx = RemoteContext(user_id="guest_user")
+    with context_session(ctx):
+        # 10 digits without '+' prefix should fail
+        res = await save_org_details(
+            org_name="Apex Innovations",
+            org_description="Robotics",
+            org_email="info@apex.com",
+            org_phone="9909990890",
+            user_position="CEO"
+        )
+        assert res["status"] == "error"
+        assert "Please include your country code starting with '+'" in res["message"]
+
+        res2 = await send_mobile_otp("9909990890")
+        assert res2["status"] == "error"
+        assert "Please include your country code starting with '+'" in res2["message"]
+
+@pytest.mark.asyncio
+async def test_phone_with_country_code_passes() -> None:
+    ctx = RemoteContext(user_id="guest_user")
+    with context_session(ctx):
+        # 10 digits with '+' prefix should pass (simulate OTP send)
+        res = await send_mobile_otp("+19909990890")
+        assert res["status"] == "success"
+
+        res2 = await send_mobile_otp("+919909990890")
+        assert res2["status"] == "success"

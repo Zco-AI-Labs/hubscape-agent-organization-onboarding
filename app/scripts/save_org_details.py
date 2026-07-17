@@ -31,10 +31,14 @@ async def save_org_details(
         }
         
     clean_phone = "".join(filter(str.isdigit, org_phone))
-    if not (len(clean_phone) >= 10 or len(clean_phone) in (7, 8)):
+    has_country = True
+    if len(clean_phone) >= 10:
+        has_country = org_phone.strip().startswith('+')
+        
+    if not (len(clean_phone) >= 10 or len(clean_phone) in (7, 8)) or not has_country:
         return {
             "status": "error",
-            "message": "Invalid organization phone format. Please provide a valid phone number (e.g. 555-019-9000)."
+            "message": "Invalid organization phone format. Please include your country code starting with '+' (e.g. +919876543210 or +15550199000)."
         }
 
     ctx = get_context()
