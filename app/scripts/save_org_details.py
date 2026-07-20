@@ -31,6 +31,7 @@ async def save_org_details(
     org_id = f"lead_{int(time.time())}"
     
     lead_data = {
+        "id": org_id,
         "org_name": org_name,
         "org_description": org_description,
         "org_website": website_clean,
