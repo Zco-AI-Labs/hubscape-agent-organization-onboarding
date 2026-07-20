@@ -239,6 +239,23 @@ async def test_save_org_details_invalid_website() -> None:
         assert "Invalid organization website format" in res["message"]
 
 @pytest.mark.asyncio
+async def test_save_org_details_empty_website() -> None:
+    ctx = RemoteContext(user_id="guest_user")
+    with context_session(ctx):
+        res = await save_org_details(
+            org_name="Apex Innovations",
+            org_description="Robotic research",
+            org_website="",
+            user_position="CEO"
+        )
+        assert res["status"] == "success"
+        assert "org_id" in res
+        
+        leads = ctx.list(scope="platform", collection_name="leads")
+        assert len(leads) == 1
+        assert leads[0]["org_website"] == ""
+
+@pytest.mark.asyncio
 async def test_associate_contact_invalid_email() -> None:
     ctx = RemoteContext(user_id="guest_user")
     with context_session(ctx):

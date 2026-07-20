@@ -8,8 +8,8 @@ from app.core.hubscape_adk import get_context, require_tool_privilege
 async def save_org_details(
     org_name: str,
     org_description: str,
-    org_website: str,
-    user_position: str
+    org_website: str = "",
+    user_position: str = ""
 ) -> dict:
     """
     Saves the organization onboarding details with status set to UNVERIFIED in the local JSON mock database.
@@ -17,15 +17,16 @@ async def save_org_details(
     Args:
         org_name: Legal name of the organization.
         org_description: Brief description of the organization.
-        org_website: Website address of the organization (e.g. www.apex.com).
+        org_website: Website address of the organization (optional, e.g. www.apex.com).
         user_position: Position or title of the user onboarding the organization.
     """
-    website_clean = org_website.strip()
-    if not ('.' in website_clean and len(website_clean) >= 4):
-        return {
-            "status": "error",
-            "message": "Invalid organization website format. Please provide a valid URL (e.g. apex.com or www.apex.com)."
-        }
+    website_clean = org_website.strip() if org_website else ""
+    if website_clean:
+        if not ('.' in website_clean and len(website_clean) >= 4):
+            return {
+                "status": "error",
+                "message": "Invalid organization website format. Please provide a valid URL (e.g. apex.com or www.apex.com)."
+            }
 
     ctx = get_context()
     org_id = f"lead_{int(time.time())}"
