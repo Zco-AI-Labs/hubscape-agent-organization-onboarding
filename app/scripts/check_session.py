@@ -28,9 +28,15 @@ async def check_session() -> dict:
         # Force invalid for generic developer sessions when active_session is set to false
         is_valid = False
     else:
-        # Fallback to standard user_id check
+        # Check if user is authenticated via Firebase Auth UID in the context metadata
+        has_firebase_auth = bool(
+            ctx.raw_context.get("firebaseUid") 
+            or ctx.raw_context.get("firebase_uid")
+        )
+        # Fallback to standard user_id check but require Firebase Authentication
         is_valid = bool(
             user_id 
+            and has_firebase_auth
             and not user_id.startswith("guest") 
             and not user_id.startswith("anonymous")
             and not user_id == "dummy_user" 
