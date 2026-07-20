@@ -33,7 +33,7 @@ from app.app_utils.vertex_gemini import get_model
 
 root_agent = AdkAgent(
     model=get_model("gemini-2.5-flash"),
-    name="organization_subscription_agent",
+    name="sales_onboarding_agent",
     description="Global Organization Subscription Agent.",
     instruction=system_instruction,
     tools=tools
