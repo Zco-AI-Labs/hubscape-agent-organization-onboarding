@@ -10,20 +10,6 @@ async def check_session() -> dict:
     ctx = get_context()
     user_id = ctx.auth.get_user_id()
     
-    # Auto-initialize registered_users and session override if not present
-    registered_users = ctx.list(scope="platform", collection_name="registered_users")
-    if not registered_users:
-        ctx.save(
-            scope="platform",
-            collection_name="registered_users",
-            doc_id="5550199",
-            data={
-                "mobile_number": "555-0199",
-                "full_name": "Alex Doe",
-                "email_address": "alex@apex.com"
-            }
-        )
-        
     cfg = ctx.get(scope="platform", collection_name="session_config", doc_id="override")
     if cfg is None:
         cfg = ctx.save(
@@ -38,26 +24,32 @@ async def check_session() -> dict:
     # If active_session is explicitly set to True in database, override and force it as valid
     if mock_session == True:
         is_valid = True
-    elif mock_session == False and (user_id == "default_user" or user_id == "dummy_user" or user_id == "dev-user-123" or not user_id):
+    elif mock_session == False and (user_id == "default_user" or user_id == "dummy_user" or user_id == "dev-user-123" or user_id == "anonymous_user" or not user_id):
         # Force invalid for generic developer sessions when active_session is set to false
         is_valid = False
     else:
         # Fallback to standard user_id check
-        is_valid = bool(user_id and not user_id.startswith("guest") and not user_id == "dummy_user" and not user_id == "default_user" and not user_id == "dev-user-123")
+        is_valid = bool(
+            user_id 
+            and not user_id.startswith("guest") 
+            and not user_id.startswith("anonymous")
+            and not user_id == "dummy_user" 
+            and not user_id == "default_user" 
+            and not user_id == "dev-user-123"
+        )
 
     if is_valid:
         # Retrieve the user record from the database if matching
-        full_name = "Alex"
-        email_address = "alex@apex.com"
-        mobile_number = "555-0199"
+        full_name = user_id
+        email_address = user_id if "@" in user_id else ""
+        mobile_number = ""
         
-        linked_org = None
         user_records = ctx.list(scope="platform", collection_name="registered_users")
         for user in user_records:
-            if user.get("email_address") == user_id or user.get("full_name") == user_id:
-                full_name = user.get("full_name")
-                email_address = user.get("email_address")
-                mobile_number = user.get("mobile_number")
+            if user.get("email_address") == user_id or user.get("full_name") == user_id or user.get("mobile_number") == user_id:
+                full_name = user.get("full_name") or full_name
+                email_address = user.get("email_address") or email_address
+                mobile_number = user.get("mobile_number") or mobile_number
                 break
         
         def normalize_phone(num: str) -> str:

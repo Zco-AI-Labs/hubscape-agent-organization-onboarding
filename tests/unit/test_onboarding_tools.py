@@ -35,7 +35,7 @@ def mock_db():
     db = {}
     
     # Default registered users setup for both agent IDs
-    for agent_id in ["organization_subscription_agent", "organization-onboarding-agent", "default_agent"]:
+    for agent_id in ["organization_subscription_agent", "organization-onboarding-agent", "sales-onboarding-agent", "sales_onboarding_agent", "default_agent"]:
         db[f"agents/{agent_id}/agent_data/platform/registered_users/5550199"] = {
             "mobile_number": "555-0199",
             "full_name": "Alex Doe",
