@@ -11,6 +11,11 @@ from app.scripts.check_mobile_exist import check_mobile_exist
 from app.scripts.send_mobile_otp import send_mobile_otp
 from app.scripts.verify_mobile_otp import verify_mobile_otp
 from app.scripts.associate_contact_and_alert import associate_contact_and_alert
+from app.scripts.show_org_details_form import show_org_details_form
+from app.scripts.show_mobile_input_widget import show_mobile_input_widget
+from app.scripts.show_otp_verify_widget import show_otp_verify_widget
+from app.scripts.show_personal_details_widget import show_personal_details_widget
+from app.scripts.show_contact_form import show_contact_form
 
 # Mock default GCP credentials and project settings
 os.environ["GOOGLE_CLOUD_PROJECT"] = "dummy-project"
@@ -342,3 +347,28 @@ async def test_phone_with_country_code_passes() -> None:
 
         res2 = await send_mobile_otp("+919909990890")
         assert res2["status"] == "success"
+
+@pytest.mark.asyncio
+async def test_show_widget_tools() -> None:
+    ctx = RemoteContext(user_id="guest_user")
+    ctx.show_widget = MagicMock(return_value={"status": "success"})
+    with context_session(ctx):
+        res1 = await show_org_details_form()
+        ctx.show_widget.assert_called_with("org_details_form")
+        assert res1["status"] == "success"
+
+        res2 = await show_mobile_input_widget()
+        ctx.show_widget.assert_called_with("mobile_input_widget")
+        assert res2["status"] == "success"
+
+        res3 = await show_otp_verify_widget()
+        ctx.show_widget.assert_called_with("otp_verify_widget")
+        assert res3["status"] == "success"
+
+        res4 = await show_personal_details_widget()
+        ctx.show_widget.assert_called_with("personal_details_widget")
+        assert res4["status"] == "success"
+
+        res5 = await show_contact_form()
+        ctx.show_widget.assert_called_with("contact_form")
+        assert res5["status"] == "success"
