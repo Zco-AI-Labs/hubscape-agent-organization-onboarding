@@ -9,7 +9,7 @@
       "props": {
         "name": "org_name",
         "label": "Organization Legal Name",
-        "placeholder": "Apex Innovations"
+        "placeholder": "Name"
       }
     },
     {
@@ -17,37 +17,24 @@
       "props": {
         "name": "org_description",
         "label": "Brief Description",
-        "placeholder": "Robotic research and development",
+        "placeholder": "Description",
         "multiline": true
       }
     },
     {
       "type": "input",
       "props": {
-        "name": "org_email",
-        "label": "Organization Email",
-        "placeholder": "info@apex.com"
+        "name": "org_website",
+        "label": "Organization Website",
+        "placeholder": "Website"
       }
     },
     {
       "type": "input",
       "props": {
-        "name": "org_phone",
-        "label": "Organization Phone",
-        "placeholder": "555-0199"
-      }
-    },
-    {
-      "type": "select",
-      "props": {
         "name": "user_position",
         "label": "Your Position/Title in Organization",
-        "options": [
-          {"label": "President", "value": "President"},
-          {"label": "CEO", "value": "CEO"},
-          {"label": "CFO", "value": "CFO"},
-          {"label": "IT Manager", "value": "IT Manager"}
-        ]
+        "placeholder": "Position/Title"
       }
     },
     {

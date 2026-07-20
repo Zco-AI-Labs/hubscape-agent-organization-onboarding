@@ -72,13 +72,13 @@
         {
           "type": "container",
           "props": {
-            "className": "flex flex-col"
+            "className": "flex flex-col col-span-2"
           },
           "children": [
             {
               "type": "text",
               "props": {
-                "text": "Org Email",
+                "text": "Website",
                 "size": "xs",
                 "className": "text-slate-400 dark:text-slate-500 font-medium"
               }
@@ -86,32 +86,7 @@
             {
               "type": "text",
               "props": {
-                "text": "{{summary_email}}",
-                "size": "sm",
-                "weight": "medium",
-                "className": "text-slate-850 dark:text-slate-200"
-              }
-            }
-          ]
-        },
-        {
-          "type": "container",
-          "props": {
-            "className": "flex flex-col"
-          },
-          "children": [
-            {
-              "type": "text",
-              "props": {
-                "text": "Org Phone",
-                "size": "xs",
-                "className": "text-slate-400 dark:text-slate-500 font-medium"
-              }
-            },
-            {
-              "type": "text",
-              "props": {
-                "text": "{{summary_phone}}",
+                "text": "{{summary_website}}",
                 "size": "sm",
                 "weight": "medium",
                 "className": "text-slate-850 dark:text-slate-200"

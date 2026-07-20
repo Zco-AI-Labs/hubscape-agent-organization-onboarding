@@ -19,7 +19,7 @@ These standard Lego block widget configurations are saved inside the agent packa
       "props": {
         "name": "org_name",
         "label": "Organization Legal Name",
-        "placeholder": "Apex Innovations"
+        "placeholder": "Name"
       }
     },
     {
@@ -27,37 +27,24 @@ These standard Lego block widget configurations are saved inside the agent packa
       "props": {
         "name": "org_description",
         "label": "Brief Description",
-        "placeholder": "Robotic research and development",
+        "placeholder": "Description",
         "multiline": true
       }
     },
     {
       "type": "input",
       "props": {
-        "name": "org_email",
-        "label": "Organization Email",
-        "placeholder": "info@apex.com"
+        "name": "org_website",
+        "label": "Organization Website",
+        "placeholder": "Website"
       }
     },
     {
       "type": "input",
       "props": {
-        "name": "org_phone",
-        "label": "Organization Phone",
-        "placeholder": "555-0199"
-      }
-    },
-    {
-      "type": "select",
-      "props": {
         "name": "user_position",
         "label": "Your Position/Title in Organization",
-        "options": [
-          {"label": "President", "value": "President"},
-          {"label": "CEO", "value": "CEO"},
-          {"label": "CFO", "value": "CFO"},
-          {"label": "IT Manager", "value": "IT Manager"}
-        ]
+        "placeholder": "Position/Title"
       }
     },
     {
@@ -276,13 +263,13 @@ These standard Lego block widget configurations are saved inside the agent packa
         {
           "type": "container",
           "props": {
-            "className": "flex flex-col"
+            "className": "flex flex-col col-span-2"
           },
           "children": [
             {
               "type": "text",
               "props": {
-                "text": "Org Email",
+                "text": "Website",
                 "size": "xs",
                 "className": "text-slate-400 dark:text-slate-500 font-medium"
               }
@@ -290,32 +277,7 @@ These standard Lego block widget configurations are saved inside the agent packa
             {
               "type": "text",
               "props": {
-                "text": "{{summary_email}}",
-                "size": "sm",
-                "weight": "medium",
-                "className": "text-slate-850 dark:text-slate-200"
-              }
-            }
-          ]
-        },
-        {
-          "type": "container",
-          "props": {
-            "className": "flex flex-col"
-          },
-          "children": [
-            {
-              "type": "text",
-              "props": {
-                "text": "Org Phone",
-                "size": "xs",
-                "className": "text-slate-400 dark:text-slate-500 font-medium"
-              }
-            },
-            {
-              "type": "text",
-              "props": {
-                "text": "{{summary_phone}}",
+                "text": "{{summary_website}}",
                 "size": "sm",
                 "weight": "medium",
                 "className": "text-slate-850 dark:text-slate-200"

@@ -109,8 +109,7 @@ async def test_save_org_details() -> None:
         res = await save_org_details(
             org_name="Apex Innovations",
             org_description="Robotic research",
-            org_email="info@apex.com",
-            org_phone="555-0199",
+            org_website="apex.com",
             user_position="CEO"
         )
         assert res["status"] == "success"
@@ -120,6 +119,7 @@ async def test_save_org_details() -> None:
         leads = ctx.list(scope="platform", collection_name="leads")
         assert len(leads) == 1
         assert leads[0]["org_name"] == "Apex Innovations"
+        assert leads[0]["org_website"] == "apex.com"
         assert leads[0]["status"] == "UNVERIFIED"
 
 @pytest.mark.asyncio
@@ -177,7 +177,7 @@ async def test_associate_contact_and_alert() -> None:
     ctx.show_widget = MagicMock()
     with context_session(ctx):
         # Save lead first
-        save_res = await save_org_details("Apex", "Robotics", "info@apex.com", "555-0199", "CEO")
+        save_res = await save_org_details("Apex", "Robotics", "apex.com", "CEO")
         org_id = save_res["org_id"]
         
         # Associate
@@ -203,8 +203,7 @@ async def test_associate_contact_and_alert() -> None:
             data={
                 "summary_name": "Apex",
                 "summary_description": "Robotics",
-                "summary_email": "info@apex.com",
-                "summary_phone": "555-0199"
+                "summary_website": "apex.com"
             }
         )
 
@@ -227,18 +226,17 @@ async def test_mobile_normalization() -> None:
         assert verify_res["valid"] is True
 
 @pytest.mark.asyncio
-async def test_save_org_details_invalid_email() -> None:
+async def test_save_org_details_invalid_website() -> None:
     ctx = RemoteContext(user_id="guest_user")
     with context_session(ctx):
         res = await save_org_details(
             org_name="Apex Innovations",
             org_description="Robotic research",
-            org_email="invalid_email",
-            org_phone="555-0199",
+            org_website="invalid_website",
             user_position="CEO"
         )
         assert res["status"] == "error"
-        assert "Invalid organization email format" in res["message"]
+        assert "Invalid organization website format" in res["message"]
 
 @pytest.mark.asyncio
 async def test_associate_contact_invalid_email() -> None:
@@ -248,8 +246,7 @@ async def test_associate_contact_invalid_email() -> None:
         org_res = await save_org_details(
             org_name="Apex Innovations",
             org_description="Robotics",
-            org_email="info@apex.com",
-            org_phone="555-0199",
+            org_website="apex.com",
             user_position="CEO"
         )
         org_id = org_res["org_id"]
@@ -265,20 +262,6 @@ async def test_associate_contact_invalid_email() -> None:
         assert "Invalid contact email format" in res["message"]
 
 @pytest.mark.asyncio
-async def test_save_org_details_invalid_phone() -> None:
-    ctx = RemoteContext(user_id="guest_user")
-    with context_session(ctx):
-        res = await save_org_details(
-            org_name="Apex Innovations",
-            org_description="Robotic research",
-            org_email="info@apex.com",
-            org_phone="12345",
-            user_position="CEO"
-        )
-        assert res["status"] == "error"
-        assert "Invalid organization phone format" in res["message"]
-
-@pytest.mark.asyncio
 async def test_associate_contact_invalid_phone() -> None:
     ctx = RemoteContext(user_id="guest_user")
     with context_session(ctx):
@@ -286,8 +269,7 @@ async def test_associate_contact_invalid_phone() -> None:
         org_res = await save_org_details(
             org_name="Apex Innovations",
             org_description="Robotics",
-            org_email="info@apex.com",
-            org_phone="555-0199",
+            org_website="apex.com",
             user_position="CEO"
         )
         org_id = org_res["org_id"]
@@ -322,16 +304,6 @@ async def test_verify_otp_invalid_phone() -> None:
 async def test_phone_missing_country_code_fails() -> None:
     ctx = RemoteContext(user_id="guest_user")
     with context_session(ctx):
-        # 10 digits without '+' prefix should fail
-        res = await save_org_details(
-            org_name="Apex Innovations",
-            org_description="Robotics",
-            org_email="info@apex.com",
-            org_phone="9909990890",
-            user_position="CEO"
-        )
-        assert res["status"] == "error"
-        assert "Please include your country code starting with '+'" in res["message"]
 
         res2 = await send_mobile_otp("9909990890")
         assert res2["status"] == "error"
