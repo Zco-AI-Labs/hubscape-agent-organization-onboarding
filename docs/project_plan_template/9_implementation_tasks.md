@@ -14,7 +14,7 @@ This checklist maps the precise, step-by-step coding and configuration changes r
 
 ### Phase 3: UI/Widgets Definition
 - [ ] Scaffold Lego block widget configurations inside the `app/ui/widgets/` folder.
-- [ ] Verify widget JSON syntax matches specifications in `docs/UI_ELEMENTS.md`.
+- [ ] Verify widget JSON syntax matches specifications in `docs/Hubscape-Agent-Template-Guide/CHAPTER_6_LEGO_WIDGETS_AND_IFRAMES.md`.
 
 ### Phase 4: Verification & Testing
 - [ ] Create unit/integration tests inside the `tests/` folder targeting the package submodules.

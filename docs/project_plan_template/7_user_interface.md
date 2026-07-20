@@ -1,5 +1,5 @@
 ## 🎨 7. User Interface & Widgets Specification
-Define the Lego block UI layouts or templates used by the agent. Refer to `docs/UI_ELEMENTS.md` for standard elements.
+Define the Lego block UI layouts or templates used by the agent. Refer to `docs/Hubscape-Agent-Template-Guide/CHAPTER_6_LEGO_WIDGETS_AND_IFRAMES.md` for standard elements.
 
 ### Widget 1: `<!-- widget_template_id -->`
 *   **Type:** `<!-- month-view calendar, list card, detail card, form, etc. -->`

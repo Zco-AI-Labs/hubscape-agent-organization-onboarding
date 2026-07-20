@@ -2,6 +2,7 @@ import os
 import uuid
 import importlib.util
 import urllib.request
+import time
 from google.genai import types
 from google.adk.runners import Runner
 from app.core import hubscape_adk
@@ -13,55 +14,10 @@ class GEAPAgentWrapper:
         self.runner = None
 
     async def query(self, question: str, context: dict = None) -> str:
+        start_time = time.time()
         core_dir = os.path.dirname(os.path.abspath(__file__))
         runtime_dir = os.path.abspath(os.path.join(core_dir, ".."))
         
-        # --- DEBUG HOOK ---
-        if question == "debug_env":
-            files = []
-            for root, dirs, ffiles in os.walk(runtime_dir):
-                for f in ffiles:
-                    files.append(os.path.relpath(os.path.join(root, f), runtime_dir))
-            
-            scripts_dir = os.path.join(runtime_dir, "scripts")
-            loaded = []
-            if os.path.exists(scripts_dir):
-                for filename in os.listdir(scripts_dir):
-                    if filename.endswith(".py"):
-                        loaded.append(filename)
-            
-            import_errors = []
-            if os.path.exists(scripts_dir):
-                for filename in os.listdir(scripts_dir):
-                    if filename.endswith(".py") and not filename.startswith("_"):
-                        module_name = filename[:-3]
-                        file_path = os.path.join(scripts_dir, filename)
-                        try:
-                            spec = importlib.util.spec_from_file_location(module_name, file_path)
-                            if spec and spec.loader:
-                                module = importlib.util.module_from_spec(spec)
-                                spec.loader.exec_module(module)
-                                func = getattr(module, module_name, None)
-                                if func and callable(func):
-                                    pass
-                                else:
-                                    import_errors.append(f"{filename}: function {module_name} not found or not callable")
-                        except Exception as e:
-                            import_errors.append(f"{filename}: {str(e)}")
-            
-            sa_email = "Unknown"
-            try:
-                req = urllib.request.Request(
-                    "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email",
-                    headers={"Metadata-Flavor": "Google"}
-                )
-                with urllib.request.urlopen(req, timeout=2) as response:
-                    sa_email = response.read().decode("utf-8").strip()
-            except Exception as e:
-                sa_email = f"Error: {e}"
-            
-            return f"Active Service Account: {sa_email}\nRuntime Dir: {runtime_dir}\nFiles:\n" + "\n".join(files) + "\nScripts dir contents:\n" + "\n".join(loaded) + "\nImport Errors:\n" + "\n".join(import_errors)
-        # --- END DEBUG HOOK ---
 
         user_id = (context or {}).get("userId") or (context or {}).get("user_id") or "anonymous_user"
         org_id = (context or {}).get("orgId") or (context or {}).get("org_id")
@@ -81,6 +37,26 @@ class GEAPAgentWrapper:
         )
         
         session_id = (context or {}).get("sessionId") or f"session_{user_id}_{hub_id}"
+        
+        # --- OPENTELEMETRY CONTEXT ENRICHMENT (OPTION A) ---
+        try:
+            from opentelemetry import trace
+            current_span = trace.get_current_span()
+            if current_span:
+                current_span.set_attribute("org_id", org_id or "unknown")
+                current_span.set_attribute("hub_id", hub_id or "unknown")
+                current_span.set_attribute("user_id", user_id or "unknown")
+                current_span.set_attribute("gen_ai.conversation_id", session_id)
+                current_span.set_attribute("gen_ai.request.model", self.agent.model.model_name)
+                current_span.set_attribute("provider", "vertex")
+                
+                # Determine query type (direct vs nested A2A) using call depth
+                depth = (context or {}).get("depth", 0)
+                request_type = "a2a" if depth > 0 else "direct"
+                current_span.set_attribute("gen_ai.request.type", request_type)
+        except Exception as otel_err:
+            print(f"⚠️ Failed to set OpenTelemetry span attributes: {otel_err}")
+        # ----------------------------------------------------
         
         with hubscape_adk.context_session(remote_ctx):
             if not self.runner:
@@ -116,4 +92,14 @@ class GEAPAgentWrapper:
                         if part.text:
                             text_response += part.text
             
+            # Record final execution latency on active span
+            try:
+                from opentelemetry import trace
+                current_span = trace.get_current_span()
+                if current_span:
+                    latency_ms = (time.time() - start_time) * 1000.0
+                    current_span.set_attribute("latency_ms", float(latency_ms))
+            except Exception as otel_err:
+                pass
+                
             return text_response
