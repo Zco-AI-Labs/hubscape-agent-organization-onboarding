@@ -15,41 +15,42 @@ These standard Lego block widget configurations are saved inside the agent packa
   },
   "children": [
     {
-      "type": "text-input",
+      "type": "input",
       "props": {
-        "id": "org_name",
+        "name": "org_name",
         "label": "Organization Legal Name",
         "placeholder": "Apex Innovations"
       }
     },
     {
-      "type": "textarea",
+      "type": "input",
       "props": {
-        "id": "org_description",
+        "name": "org_description",
         "label": "Brief Description",
-        "placeholder": "Robotic research and development"
+        "placeholder": "Robotic research and development",
+        "multiline": true
       }
     },
     {
-      "type": "text-input",
+      "type": "input",
       "props": {
-        "id": "org_email",
+        "name": "org_email",
         "label": "Organization Email",
         "placeholder": "info@apex.com"
       }
     },
     {
-      "type": "text-input",
+      "type": "input",
       "props": {
-        "id": "org_phone",
+        "name": "org_phone",
         "label": "Organization Phone",
         "placeholder": "555-0199"
       }
     },
     {
-      "type": "dropdown",
+      "type": "select",
       "props": {
-        "id": "user_position",
+        "name": "user_position",
         "label": "Your Position/Title in Organization",
         "options": [
           {"label": "President", "value": "President"},
@@ -62,9 +63,11 @@ These standard Lego block widget configurations are saved inside the agent packa
     {
       "type": "button",
       "props": {
-        "id": "submit_org_details",
         "label": "Submit Details",
-        "variant": "primary"
+        "actionUrl": "agent://save_org_details",
+        "styling": {
+          "colorTheme": "indigo"
+        }
       }
     }
   ]
@@ -86,19 +89,22 @@ These standard Lego block widget configurations are saved inside the agent packa
   },
   "children": [
     {
-      "type": "text-input",
+      "type": "input",
       "props": {
-        "id": "mobile_number",
+        "name": "mobile_number",
         "label": "Personal Contact Mobile Number",
-        "placeholder": "555-0199"
+        "placeholder": "555-0199",
+        "inputType": "text"
       }
     },
     {
       "type": "button",
       "props": {
-        "id": "submit_mobile",
         "label": "Check Account",
-        "variant": "primary"
+        "actionUrl": "agent://check_mobile_exist",
+        "styling": {
+          "colorTheme": "slate"
+        }
       }
     }
   ]
@@ -120,19 +126,22 @@ These standard Lego block widget configurations are saved inside the agent packa
   },
   "children": [
     {
-      "type": "text-input",
+      "type": "input",
       "props": {
-        "id": "otp_code",
+        "name": "otp_code",
         "label": "Enter 6-digit Verification Code",
-        "placeholder": "123456"
+        "placeholder": "123456",
+        "inputType": "text"
       }
     },
     {
       "type": "button",
       "props": {
-        "id": "submit_otp",
         "label": "Verify OTP",
-        "variant": "primary"
+        "actionUrl": "agent://verify_mobile_otp",
+        "styling": {
+          "colorTheme": "blue"
+        }
       }
     }
   ]
@@ -154,27 +163,31 @@ These standard Lego block widget configurations are saved inside the agent packa
   },
   "children": [
     {
-      "type": "text-input",
+      "type": "input",
       "props": {
-        "id": "full_name",
+        "name": "full_name",
         "label": "Contact Person Full Name",
-        "placeholder": "Alex Doe"
+        "placeholder": "Alex Doe",
+        "inputType": "text"
       }
     },
     {
-      "type": "text-input",
+      "type": "input",
       "props": {
-        "id": "email_address",
+        "name": "contact_email",
         "label": "Contact Email Address",
-        "placeholder": "alex@apex.com"
+        "placeholder": "alex@apex.com",
+        "inputType": "text"
       }
     },
     {
       "type": "button",
       "props": {
-        "id": "submit_personal",
         "label": "Submit Contact Details",
-        "variant": "primary"
+        "actionUrl": "agent://associate_contact_and_alert",
+        "styling": {
+          "colorTheme": "pink"
+        }
       }
     }
   ]
@@ -190,27 +203,127 @@ These standard Lego block widget configurations are saved inside the agent packa
 ```json
 // app/ui/widgets/org_summary_card.json
 {
-  "type": "card",
+  "type": "container",
   "props": {
-    "className": "p-4 bg-green-50 rounded-lg border border-green-200"
+    "className": "flex flex-col gap-4 p-5 bg-emerald-50 dark:bg-emerald-950 rounded-xl border border-emerald-200 dark:border-emerald-800 shadow-sm"
   },
   "children": [
     {
-      "type": "title",
+      "type": "text",
       "props": {
-        "text": "Organization Summary Card"
+        "text": "Organization Summary Card",
+        "size": "lg",
+        "weight": "bold",
+        "className": "text-emerald-900 dark:text-emerald-100"
       }
     },
     {
-      "type": "metadata-grid",
+      "type": "container",
       "props": {
-        "items": [
-          {"label": "Legal Name", "id": "summary_name"},
-          {"label": "Description", "id": "summary_description"},
-          {"label": "Org Email", "id": "summary_email"},
-          {"label": "Org Phone", "id": "summary_phone"}
-        ]
-      }
+        "className": "grid grid-cols-2 gap-3 bg-white dark:bg-slate-900 p-4 rounded-lg border border-emerald-100 dark:border-slate-800"
+      },
+      "children": [
+        {
+          "type": "container",
+          "props": {
+            "className": "flex flex-col"
+          },
+          "children": [
+            {
+              "type": "text",
+              "props": {
+                "text": "Legal Name",
+                "size": "xs",
+                "className": "text-slate-400 dark:text-slate-500 font-medium"
+              }
+            },
+            {
+              "type": "text",
+              "props": {
+                "text": "{{summary_name}}",
+                "size": "sm",
+                "weight": "medium",
+                "className": "text-slate-800 dark:text-slate-200"
+              }
+            }
+          ]
+        },
+        {
+          "type": "container",
+          "props": {
+            "className": "flex flex-col"
+          },
+          "children": [
+            {
+              "type": "text",
+              "props": {
+                "text": "Description",
+                "size": "xs",
+                "className": "text-slate-400 dark:text-slate-500 font-medium"
+              }
+            },
+            {
+              "type": "text",
+              "props": {
+                "text": "{{summary_description}}",
+                "size": "sm",
+                "weight": "medium",
+                "className": "text-slate-800 dark:text-slate-200"
+              }
+            }
+          ]
+        },
+        {
+          "type": "container",
+          "props": {
+            "className": "flex flex-col"
+          },
+          "children": [
+            {
+              "type": "text",
+              "props": {
+                "text": "Org Email",
+                "size": "xs",
+                "className": "text-slate-400 dark:text-slate-500 font-medium"
+              }
+            },
+            {
+              "type": "text",
+              "props": {
+                "text": "{{summary_email}}",
+                "size": "sm",
+                "weight": "medium",
+                "className": "text-slate-850 dark:text-slate-200"
+              }
+            }
+          ]
+        },
+        {
+          "type": "container",
+          "props": {
+            "className": "flex flex-col"
+          },
+          "children": [
+            {
+              "type": "text",
+              "props": {
+                "text": "Org Phone",
+                "size": "xs",
+                "className": "text-slate-400 dark:text-slate-500 font-medium"
+              }
+            },
+            {
+              "type": "text",
+              "props": {
+                "text": "{{summary_phone}}",
+                "size": "sm",
+                "weight": "medium",
+                "className": "text-slate-850 dark:text-slate-200"
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }

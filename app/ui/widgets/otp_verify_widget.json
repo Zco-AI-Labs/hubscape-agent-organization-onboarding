@@ -5,19 +5,22 @@
   },
   "children": [
     {
-      "type": "text-input",
+      "type": "input",
       "props": {
-        "id": "otp_code",
+        "name": "otp_code",
         "label": "Enter 6-digit Verification Code",
-        "placeholder": "123456"
+        "placeholder": "123456",
+        "inputType": "text"
       }
     },
     {
       "type": "button",
       "props": {
-        "id": "submit_otp",
         "label": "Verify OTP",
-        "variant": "primary"
+        "actionUrl": "agent://verify_mobile_otp",
+        "styling": {
+          "colorTheme": "blue"
+        }
       }
     }
   ]
