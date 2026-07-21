@@ -45,7 +45,7 @@ root_agent = AdkAgent(
     translating raw status indicators into clear, human-friendly updates. Additionally, 
     it features multi-agent coordination capabilities to discover and consult specialized 
     assistant agents across the network for complex inquiry resolution.
-    """
+    """,
     instruction=system_instruction,
     tools=tools
 )
