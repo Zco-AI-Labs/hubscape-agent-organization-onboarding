@@ -49,9 +49,20 @@ async def save_org_details(
         doc_id=org_id,
         data=lead_data
     )
-        
+
+    # Queue rendering the summary card widget
+    summary_data = {
+        "summary_name": org_name,
+        "summary_description": org_description,
+        "summary_website": website_clean
+    }
+    try:
+        ctx.show_widget("org_summary_card", data=summary_data)
+    except Exception as e:
+        print(f"⚠️ [WIDGET QUEUE WARNING] Failed to queue summary widget: {e}")
+
     return {
         "status": "success",
         "org_id": org_id,
-        "message": f"Organization '{org_name}' details successfully saved as UNVERIFIED."
+        "message": f"Organization '{org_name}' details successfully saved."
     }
