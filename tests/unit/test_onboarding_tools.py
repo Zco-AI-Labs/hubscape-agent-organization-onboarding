@@ -16,6 +16,7 @@ from app.scripts.show_mobile_input_widget import show_mobile_input_widget
 from app.scripts.show_otp_verify_widget import show_otp_verify_widget
 from app.scripts.show_personal_details_widget import show_personal_details_widget
 from app.scripts.show_contact_form import show_contact_form
+from app.scripts.submit_personal import submit_personal
 
 # Mock default GCP credentials and project settings
 os.environ["GOOGLE_CLOUD_PROJECT"] = "dummy-project"
@@ -354,10 +355,53 @@ async def test_show_widget_tools() -> None:
         ctx.show_widget.assert_called_with("otp_verify_widget")
         assert res3["status"] == "success"
 
-        res4 = await show_personal_details_widget()
-        ctx.show_widget.assert_called_with("personal_details_widget")
+        res4 = await show_personal_details_widget("lead_123")
+        ctx.show_widget.assert_called_with("personal_details_widget", data={"org_id": "lead_123"})
         assert res4["status"] == "success"
 
         res5 = await show_contact_form()
         ctx.show_widget.assert_called_with("contact_form")
         assert res5["status"] == "success"
+
+@pytest.mark.asyncio
+async def test_submit_personal_success() -> None:
+    ctx = RemoteContext(user_id="guest_user")
+    ctx.show_widget = MagicMock()
+    with context_session(ctx):
+        # 1. Save org details first
+        org_res = await save_org_details("Apex Pizza", "Best Pizza", "apex.com", "Manager")
+        org_id = org_res["org_id"]
+        
+        # 2. Submit personal details
+        res = await submit_personal("Alex Doe", "alex@apex.com", org_id)
+        assert res["status"] == "success"
+        
+        # 3. Verify lead document is updated
+        lead = ctx.get(scope="platform", collection_name="leads", doc_id=org_id)
+        assert lead["contact_name"] == "Alex Doe"
+        assert lead["contact_email"] == "alex@apex.com"
+        assert lead["status"] == "ASSOCIATED"
+        
+        # 4. Verify org_summary_card widget was queued
+        ctx.show_widget.assert_any_call("org_summary_card", data={
+            "summary_name": "Apex Pizza",
+            "summary_description": "Best Pizza",
+            "summary_website": "apex.com"
+        })
+
+@pytest.mark.asyncio
+async def test_submit_personal_invalid_email() -> None:
+    ctx = RemoteContext(user_id="guest_user")
+    with context_session(ctx):
+        res = await submit_personal("Alex Doe", "invalid-email", "some_org_id")
+        assert res["status"] == "error"
+        assert "Invalid contact email format" in res["message"]
+
+@pytest.mark.asyncio
+async def test_submit_personal_not_found() -> None:
+    ctx = RemoteContext(user_id="guest_user")
+    with context_session(ctx):
+        res = await submit_personal("Alex Doe", "alex@apex.com", "nonexistent_org_id")
+        assert res["status"] == "error"
+        assert "Lead record nonexistent_org_id not found" in res["message"]
+

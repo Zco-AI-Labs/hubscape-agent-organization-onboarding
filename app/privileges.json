@@ -14,7 +14,8 @@
         "show_mobile_input_widget",
         "show_otp_verify_widget",
         "show_personal_details_widget",
-        "show_contact_form"
+        "show_contact_form",
+        "submit_personal"
       ]
     }
   }

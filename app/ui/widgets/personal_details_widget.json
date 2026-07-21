@@ -7,6 +7,15 @@
     {
       "type": "input",
       "props": {
+        "name": "org_id",
+        "value": "{{org_id}}",
+        "inputType": "text",
+        "className": "hidden"
+      }
+    },
+    {
+      "type": "input",
+      "props": {
         "name": "full_name",
         "label": "Contact Person Full Name",
         "placeholder": "Alex Doe",
