@@ -34,7 +34,7 @@ from app.app_utils.vertex_gemini import get_model
 root_agent = AdkAgent(
     model=get_model("gemini-2.5-flash"),
     name="sales_onboarding_agent",
-    description="Global Organization Subscription Agent.",
+    description="The Hubscape Global Organization Subscription Agent is a specialized virtual assistant designed to streamline company onboarding, subscription management, and user support. It guides prospective and existing clients through registering new organization details via interactive intake forms, submitting customer support inquiries, and checking the real-time status of their subscription requests. To protect sensitive account data, the agent enforces multi-step mobile OTP identity verification before disclosing linked organization records, while automatically translating raw status indicators into clear, human-friendly updates. Additionally, it features multi-agent coordination capabilities to discover and consult specialized assistant agents across the network for complex inquiry resolution.",
     instruction=system_instruction,
     tools=tools
 )
