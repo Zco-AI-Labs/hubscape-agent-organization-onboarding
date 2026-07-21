@@ -35,7 +35,7 @@ root_agent = AdkAgent(
     model=get_model("gemini-2.5-flash"),
     name="sales_onboarding_agent",
     description="""
-    Use this agent for all organization subscription onboarding, subscription status inquiries, and customer support contact requests.
+    Use this agent for all organization/company/business subscription onboarding, subscription status inquiries, and customer support contact requests.
 
     Key Capabilities & Triggers:
     1. Subscribe/Onboard Organization: Handles requests to subscribe a business, company, or organization to Hubscape services via interactive intake forms.
