@@ -405,3 +405,32 @@ async def test_submit_personal_not_found() -> None:
         assert res["status"] == "error"
         assert "Lead record nonexistent_org_id not found" in res["message"]
 
+@pytest.mark.asyncio
+async def test_submit_personal_fallback() -> None:
+    ctx = RemoteContext(user_id="guest_user")
+    ctx.show_widget = MagicMock()
+    # Create mock session object
+    class MockSession:
+        def __init__(self):
+            self.state = {}
+    ctx.session = MockSession()
+    
+    with context_session(ctx):
+        # 1. Save org details first
+        org_res = await save_org_details("Apex Pizza", "Best Pizza", "apex.com", "Manager")
+        org_id = org_res["org_id"]
+        
+        # 2. Check if active_org_id was populated in session state
+        assert ctx.session.state["active_org_id"] == org_id
+        
+        # 3. Submit personal details with org_id omitted to test fallback
+        res = await submit_personal("Alex Doe", "alex@apex.com")
+        assert res["status"] == "success"
+        
+        # 4. Verify lead document is updated
+        lead = ctx.get(scope="platform", collection_name="leads", doc_id=org_id)
+        assert lead["contact_name"] == "Alex Doe"
+        assert lead["contact_email"] == "alex@apex.com"
+        assert lead["status"] == "ASSOCIATED"
+
+

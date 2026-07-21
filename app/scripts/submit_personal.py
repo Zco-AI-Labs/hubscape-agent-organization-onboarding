@@ -8,7 +8,7 @@ from app.core.hubscape_adk import get_context, require_tool_privilege
 async def submit_personal(
     full_name: str,
     contact_email: str,
-    org_id: str
+    org_id: str = None
 ) -> dict:
     """
     Saves the user's personal details (full name and email) to the specified lead record,
@@ -28,6 +28,17 @@ async def submit_personal(
 
     ctx = get_context()
     
+    # Fallback to session state if org_id was omitted in tool arguments
+    if not org_id:
+        if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state:
+            org_id = ctx.session.state.get("active_org_id")
+
+    if not org_id:
+        return {
+            "status": "error",
+            "message": "Error: Could not resolve active Organization ID for this session."
+        }
+        
     # Retrieve existing lead record
     lead = ctx.get(scope="platform", collection_name="leads", doc_id=org_id)
     if not lead:
