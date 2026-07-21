@@ -355,8 +355,8 @@ async def test_show_widget_tools() -> None:
         ctx.show_widget.assert_called_with("otp_verify_widget")
         assert res3["status"] == "success"
 
-        res4 = await show_personal_details_widget("lead_123")
-        ctx.show_widget.assert_called_with("personal_details_widget", data={"org_id": "lead_123"})
+        res4 = await show_personal_details_widget()
+        ctx.show_widget.assert_called_with("personal_details_widget")
         assert res4["status"] == "success"
 
         res5 = await show_contact_form()
