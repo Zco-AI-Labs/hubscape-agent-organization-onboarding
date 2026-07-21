@@ -59,5 +59,5 @@ async def save_org_details(
     return {
         "status": "success",
         "org_id": org_id,
-        "message": f"Organization '{org_name}' details successfully saved."
+        "message": f"Organization '{org_name}' details successfully saved with org_id: {org_id}."
     }
