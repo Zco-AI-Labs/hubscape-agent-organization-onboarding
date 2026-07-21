@@ -122,6 +122,11 @@ async def test_save_org_details() -> None:
         assert leads[0]["org_name"] == "Apex Innovations"
         assert leads[0]["org_website"] == "apex.com"
         assert leads[0]["status"] == "UNVERIFIED"
+        
+        # Verify personal_details_widget was queued in context.actions
+        assert len(ctx.actions) == 1
+        assert ctx.actions[0]["payload"]["widgetId"] == "personal_details_widget"
+        assert ctx.actions[0]["payload"]["data"]["org_id"] == res["org_id"]
 
 @pytest.mark.asyncio
 async def test_check_session_valid() -> None:
@@ -356,8 +361,11 @@ async def test_show_widget_tools() -> None:
         assert res3["status"] == "success"
 
         res4 = await show_personal_details_widget("lead_123")
-        ctx.show_widget.assert_called_with("personal_details_widget", data={"org_id": "lead_123"})
         assert res4["status"] == "success"
+        assert any(
+            act["payload"]["widgetId"] == "personal_details_widget" and act["payload"]["data"]["org_id"] == "lead_123"
+            for act in ctx.actions
+        )
 
         res5 = await show_contact_form()
         ctx.show_widget.assert_called_with("contact_form")

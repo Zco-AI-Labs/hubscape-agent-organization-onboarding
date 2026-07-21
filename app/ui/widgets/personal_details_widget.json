@@ -9,8 +9,8 @@
       "props": {
         "name": "org_id",
         "value": "{{org_id}}",
-        "inputType": "text",
-        "className": "hidden"
+        "defaultValue": "{{org_id}}",
+        "inputType": "hidden"
       }
     },
     {

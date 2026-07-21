@@ -52,7 +52,8 @@ async def save_org_details(
 
     # Queue rendering the personal details widget
     try:
-        ctx.show_widget("personal_details_widget", data={"org_id": org_id})
+        from app.scripts.show_personal_details_widget import show_personal_details_widget
+        await show_personal_details_widget(org_id)
     except Exception as e:
         print(f"⚠️ [WIDGET QUEUE WARNING] Failed to queue personal details widget: {e}")
 
