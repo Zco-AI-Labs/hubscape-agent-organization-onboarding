@@ -28,10 +28,15 @@ async def submit_personal(
 
     ctx = get_context()
     
-    # Fallback to session state if org_id was omitted in tool arguments
-    if not org_id:
-        if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state:
-            org_id = ctx.session.state.get("active_org_id")
+    # Resolve active org_id: primary source is session state, fallback is tool parameter
+    resolved_org_id = None
+    if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state:
+        resolved_org_id = ctx.session.state.get("active_org_id")
+        
+    if not resolved_org_id:
+        resolved_org_id = org_id
+        
+    org_id = resolved_org_id
 
     if not org_id:
         return {
