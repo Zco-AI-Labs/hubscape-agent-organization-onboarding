@@ -94,21 +94,22 @@ class GEAPAgentWrapper:
 
             # Retrieve or create session and bind it to context
             try:
-                adk_session = await self.runner.session_service.get_session(
+                session_obj = await self.runner.session_service.get_session(
                     app_name=self.app_name,
                     user_id=user_id,
                     session_id=session_id
                 )
-                if not adk_session:
-                    adk_session = await self.runner.session_service.create_session(
+                if not session_obj:
+                    session_obj = await self.runner.session_service.create_session(
                         app_name=self.app_name,
                         user_id=user_id,
                         session_id=session_id
                     )
-                if adk_session:
-                    if not hasattr(adk_session, "state") or adk_session.state is None:
-                        adk_session.state = {}
-                    remote_ctx.session = adk_session
+                if session_obj:
+                    if not hasattr(session_obj, "state") or session_obj.state is None:
+                        session_obj.state = {}
+                    # After loading or creating the ADK session:
+                    remote_ctx.session = session_obj
             except Exception as bind_err:
                 print(f"⚠️ Non-critical: Failed to bind session to remote_ctx: {bind_err}")
 

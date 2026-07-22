@@ -32,6 +32,8 @@ class RemoteContext:
         self.raw_context = raw_context or {}
         self.actions = []
         self._db = None
+        self.session = None  # <--- [NEW] Holds active ADK session object
+
         
         # Resolve allow_generative_ui flag
         if allow_generative_ui is not None:
