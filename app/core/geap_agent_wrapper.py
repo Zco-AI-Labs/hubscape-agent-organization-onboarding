@@ -79,6 +79,9 @@ class GEAPAgentWrapper:
                     from google.adk.sessions import Session
                     session_obj = Session.model_validate_json(adk_session_json)
                     
+                    # Restore the custom state dictionary
+                    session_obj.state = session_doc.get("session_state") or {}
+                    
                     session_service = self.runner.session_service
                     app_name = session_obj.app_name
                     uid = session_obj.user_id
@@ -173,12 +176,14 @@ class GEAPAgentWrapper:
                 )
                 if updated_session:
                     serialized_json = updated_session.model_dump_json()
+                    session_state = getattr(updated_session, "state", {})
                     remote_ctx.save(
                         scope="user",
                         collection_name="sessions",
                         doc_id=session_id,
                         data={
-                            "adk_session": serialized_json
+                            "adk_session": serialized_json,
+                            "session_state": session_state
                         }
                     )
             except Exception as save_err:
