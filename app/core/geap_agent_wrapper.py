@@ -87,23 +87,36 @@ class GEAPAgentWrapper:
                     uid = session_obj.user_id
                     sid = session_obj.id
                     
+                    # Register under the restored app_name (e.g. "app")
                     if app_name not in session_service.sessions:
                         session_service.sessions[app_name] = {}
                     if uid not in session_service.sessions[app_name]:
                         session_service.sessions[app_name][uid] = {}
                     session_service.sessions[app_name][uid][sid] = session_obj
+                    
+                    # Also register under self.app_name to ensure local tools/runners find it
+                    if self.app_name not in session_service.sessions:
+                        session_service.sessions[self.app_name] = {}
+                    if uid not in session_service.sessions[self.app_name]:
+                        session_service.sessions[self.app_name][uid] = {}
+                    session_service.sessions[self.app_name][uid][sid] = session_obj
             except Exception as restore_err:
                 print(f"⚠️ Non-critical: Failed to restore session trajectory: {restore_err}")
 
             # Retrieve or create session and bind it to context
             try:
-                session_obj = await self.runner.session_service.get_session(
-                    app_name=self.app_name,
-                    user_id=user_id,
-                    session_id=session_id
-                )
+                session_obj = None
+                session_service = self.runner.session_service
+                for app in [self.app_name, "app"] + list(session_service.sessions.keys()):
+                    session_obj = await session_service.get_session(
+                        app_name=app,
+                        user_id=user_id,
+                        session_id=session_id
+                    )
+                    if session_obj:
+                        break
                 if not session_obj:
-                    session_obj = await self.runner.session_service.create_session(
+                    session_obj = await session_service.create_session(
                         app_name=self.app_name,
                         user_id=user_id,
                         session_id=session_id
@@ -169,11 +182,16 @@ class GEAPAgentWrapper:
             
             # 2. Persist updated ADK session state back to Firestore
             try:
-                updated_session = await self.runner.session_service.get_session(
-                    app_name=self.app_name,
-                    user_id=user_id,
-                    session_id=session_id
-                )
+                updated_session = None
+                session_service = self.runner.session_service
+                for app in [self.app_name, "app"] + list(session_service.sessions.keys()):
+                    updated_session = await session_service.get_session(
+                        app_name=app,
+                        user_id=user_id,
+                        session_id=session_id
+                    )
+                    if updated_session:
+                        break
                 if updated_session:
                     serialized_json = updated_session.model_dump_json()
                     session_state = getattr(updated_session, "state", {})
