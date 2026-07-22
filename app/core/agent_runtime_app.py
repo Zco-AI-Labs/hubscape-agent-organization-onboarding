@@ -163,6 +163,13 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
         hub_id = metadata.get("hubId") or metadata.get("hub_id")
         mode = metadata.get("mode") or "none"
         
+        session_id_resolved = metadata.get("sessionId") or metadata.get("session_id") or f"session_{user_id_resolved}_{hub_id}"
+        
+        # Align A2A context ID with the resolved session ID to unify session management
+        context._context_id = session_id_resolved
+        if hasattr(context, "_params") and context._params and hasattr(context._params, "message") and context._params.message:
+            context._params.message.context_id = session_id_resolved
+            
         agent_name = root_agent.name.replace('_', '-') if root_agent and hasattr(root_agent, "name") else "custom-agent"
         agent_uuid = str(uuid.uuid5(uuid.NAMESPACE_URL, f"https://github.com/Zco-AI-Labs/{agent_name}"))
         from app.app_utils.env_resolver import get_project_id
@@ -198,7 +205,6 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
         root_agent.instruction = f"{session_context}{roster_str}\n{base_instruction}"
         
         # --- OPENTELEMETRY CONTEXT ENRICHMENT ---
-        session_id_resolved = metadata.get("sessionId") or metadata.get("session_id") or f"session_{user_id_resolved}_{hub_id}"
         
         # --- TELEMETRY CONTEXT VARIABLES SETTING ---
         telemetry_org_id.set(org_id or "unknown")
