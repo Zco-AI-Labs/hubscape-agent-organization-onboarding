@@ -99,6 +99,12 @@ async def consultAgent(agentId: str, query: str) -> str:
         
         # Request metadata provider to securely propagate RBAC context and increment call depth
         def request_meta_provider(invocation_context, a2a_message):
+            resolved_session_id = None
+            if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "id"):
+                resolved_session_id = ctx.session.id
+            if not resolved_session_id:
+                resolved_session_id = raw_ctx.get("sessionId") or raw_ctx.get("session_id") or f"session_{ctx.auth.get_user_id()}_{ctx.auth.hub_id}"
+
             return {
                 "userId": ctx.auth.get_user_id(),
                 "user_id": ctx.auth.get_user_id(),
@@ -106,6 +112,8 @@ async def consultAgent(agentId: str, query: str) -> str:
                 "org_id": ctx.auth.org_id,
                 "hubId": ctx.auth.hub_id,
                 "hub_id": ctx.auth.hub_id,
+                "sessionId": resolved_session_id,
+                "session_id": resolved_session_id,
                 "mode": raw_ctx.get("mode"),
                 "accessible_agents": accessible_agents,
                 "depth": current_depth + 1,
