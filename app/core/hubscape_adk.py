@@ -32,8 +32,6 @@ class RemoteContext:
         self.raw_context = raw_context or {}
         self.actions = []
         self._db = None
-        self.session = None  # <--- [NEW] Holds active ADK session object
-
         
         # Resolve allow_generative_ui flag
         if allow_generative_ui is not None:
@@ -41,6 +39,10 @@ class RemoteContext:
         else:
             platform_config = self.raw_context.get("config") or {}
             self.allow_generative_ui = platform_config.get("allowGenerativeUi", True)
+
+    @property
+    def user_privileges(self) -> list:
+        return self.raw_context.get("user_privileges") or self.raw_context.get("userPrivileges") or []
 
     @property
     def _db_client(self):
@@ -310,6 +312,18 @@ class RemoteContext:
         self.actions.append(action_payload)
         return {"status": "success", "message": "Custom UI layout queued."}
 
+    def close_widget(self, message_id: Optional[str] = None, result_text: Optional[str] = None) -> dict:
+        """Registers a CLOSE_AGENT_WIDGET client action directive to close/unmount an active widget."""
+        action_payload = {
+            "type": "CLOSE_AGENT_WIDGET",
+            "payload": {
+                "messageId": message_id,
+                "resultText": result_text or "✅ Widget closed."
+            }
+        }
+        self.actions.append(action_payload)
+        return {"status": "success", "message": "Close widget directive queued."}
+
     def send_otp(self, phone_number: str) -> dict:
         """
         Sends an SMS OTP code to the target phone number via the Hubscape central backend.
@@ -448,6 +462,9 @@ def require_tool_privilege(func):
     is_async = inspect.iscoroutinefunction(func)
 
     def verify_privilege():
+        if func.__name__ in ("consultAgent", "discover_agents", "suggestQueries"):
+            return True
+            
         try:
             context = get_context()
             token = context.raw_context.get("capability_token")
@@ -502,6 +519,7 @@ def require_tool_privilege(func):
                 fernet = Fernet(derived_key.encode())
                 decrypted_bytes = fernet.decrypt(encrypted_segment.encode())
                 allowed_privilege_ids = json.loads(decrypted_bytes.decode())
+                logging.getLogger(__name__).info(f"[adk] Decrypted allowed privilege IDs: {allowed_privilege_ids}")
             except Exception as decrypt_err:
                 raise PermissionError(f"Security Block: Failed to decrypt capabilities: {decrypt_err}")
                 
@@ -521,6 +539,7 @@ def require_tool_privilege(func):
                         priv_info = privileges_config.get(priv_id) or {}
                         tools = priv_info.get("tools") or []
                         allowed_tools.extend(tools)
+                    logging.getLogger(__name__).info(f"[adk] Mapped allowed tools: {allowed_tools}")
                 except Exception as read_err:
                     logging.getLogger(__name__).warning(f"⚠️ Failed to read/parse privileges.json: {read_err}")
                 
@@ -546,3 +565,150 @@ def require_tool_privilege(func):
             verify_privilege()
             return func(*args, **kwargs)
         return sync_wrapper
+
+
+def tool_scope(allowed_scopes: list[str]):
+    """
+    Decorator to restrict the workspace scopes in which this tool is allowed to be invoked.
+    Example:
+        @tool_scope(["hub"])
+        async def my_hub_only_tool():
+            ...
+    """
+    def decorator(func):
+        func._allowed_scopes = allowed_scopes
+        return func
+    return decorator
+
+
+def filter_tools_for_scope(*args, **kwargs):
+    """
+    Filters tools based on workspace scope and/or user privileges.
+    Supports two signatures:
+    1. (tools: list, hub_id: str | None, org_id: str | None = None) -> list
+    2. (agent: Agent, user_privileges: list, workspace_type: str, workspace_id: str, org_id: str) -> Agent
+    """
+    agent = kwargs.get("agent")
+    if not agent and args and not isinstance(args[0], list):
+        agent = args[0]
+        
+    if agent:
+        # Signature 2: Returns cloned Agent with filtered tools
+        user_privileges = kwargs.get("user_privileges")
+        if user_privileges is None and len(args) > 1:
+            user_privileges = args[1]
+            
+        workspace_type = kwargs.get("workspace_type")
+        if workspace_type is None and len(args) > 2:
+            workspace_type = args[2]
+            
+        workspace_id = kwargs.get("workspace_id")
+        if workspace_id is None and len(args) > 3:
+            workspace_id = args[3]
+            
+        org_id = kwargs.get("org_id")
+        if org_id is None and len(args) > 4:
+            org_id = args[4]
+            
+        cloned_agent = agent.clone()
+        
+        wtype = workspace_type or "hub"
+        if wtype in ("organization", "org", "platform"):
+            active_scope = "org"
+        else:
+            active_scope = "hub"
+            
+        filtered_tools = []
+        for tool in cloned_agent.tools:
+            allowed_scopes = getattr(tool, "_allowed_scopes", None)
+            if allowed_scopes is None:
+                wrapped = getattr(tool, "__wrapped__", None)
+                while wrapped is not None:
+                    allowed_scopes = getattr(wrapped, "_allowed_scopes", None)
+                    if allowed_scopes is not None:
+                        break
+                    wrapped = getattr(wrapped, "__wrapped__", None)
+                    
+            if allowed_scopes is not None:
+                if active_scope not in allowed_scopes:
+                    continue
+            filtered_tools.append(tool)
+            
+        if user_privileges is not None:
+            privileges_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "privileges.json")
+            if not os.path.exists(privileges_path):
+                privileges_path = "privileges.json"
+                
+            allowed_tools = []
+            if os.path.exists(privileges_path):
+                try:
+                    with open(privileges_path, "r") as f:
+                        priv_data = json.load(f)
+                    privileges_config = priv_data.get("privileges", {})
+                    for priv_id in user_privileges:
+                        priv_info = privileges_config.get(str(priv_id)) or {}
+                        tools_list = priv_info.get("tools") or []
+                        allowed_tools.extend(tools_list)
+                except Exception as read_err:
+                    import logging
+                    logging.getLogger(__name__).warning(f"⚠️ Failed to read/parse privileges.json: {read_err}")
+            
+            final_tools = []
+            for tool in filtered_tools:
+                tool_name = getattr(tool, "__name__", str(tool))
+                if tool_name in ("consultAgent", "discover_agents", "suggestQueries"):
+                    final_tools.append(tool)
+                elif not allowed_tools or tool_name in allowed_tools:
+                    final_tools.append(tool)
+            filtered_tools = final_tools
+            
+        cloned_agent.tools = filtered_tools
+        return cloned_agent
+
+    else:
+        # Signature 1: Returns filtered tools list
+        tools = kwargs.get("tools")
+        if tools is None and args:
+            tools = args[0]
+            
+        hub_id = kwargs.get("hub_id")
+        if hub_id is None and len(args) > 1:
+            hub_id = args[1]
+            
+        org_id = kwargs.get("org_id")
+        if org_id is None and len(args) > 2:
+            org_id = args[2]
+            
+        if org_id is not None:
+            is_org_scope = (hub_id == org_id) or (not hub_id) or (hub_id == "platform")
+            active_scope = "org" if is_org_scope else "hub"
+        else:
+            wtype = hub_id or "hub"
+            if wtype in ("organization", "org", "platform"):
+                active_scope = "org"
+            else:
+                active_scope = "hub"
+                
+        import logging
+        logging.info(f"[adk] filter_tools_for_scope: active_scope={active_scope}, input tools count={len(tools or [])}")
+        filtered = []
+        for tool in (tools or []):
+            tool_name = getattr(tool, "__name__", str(tool))
+            allowed_scopes = getattr(tool, "_allowed_scopes", None)
+            if allowed_scopes is None:
+                wrapped = getattr(tool, "__wrapped__", None)
+                while wrapped is not None:
+                    allowed_scopes = getattr(wrapped, "_allowed_scopes", None)
+                    if allowed_scopes is not None:
+                        break
+                    wrapped = getattr(wrapped, "__wrapped__", None)
+                    
+            logging.info(f"[adk] Tool: {tool_name}, allowed_scopes={allowed_scopes}")
+            if allowed_scopes is not None:
+                if active_scope not in allowed_scopes:
+                    logging.info(f"[adk]   Skipped {tool_name} (active_scope {active_scope} not in {allowed_scopes})")
+                    continue
+            logging.info(f"[adk]   Kept {tool_name}")
+            filtered.append(tool)
+        return filtered
+
