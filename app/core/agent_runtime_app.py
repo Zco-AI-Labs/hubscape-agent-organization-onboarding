@@ -292,6 +292,7 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
             import logging
             logging.warning("Failed to dynamically register BillingContextLogRecordProcessor: %s", otel_reg_err)
 
+        try:
             # Enter the context session to ensure all Firestore calls in tools are authenticated
             with hubscape_adk.context_session(remote_ctx):
                 # 1. Restore ADK session trajectory from Firestore if available
