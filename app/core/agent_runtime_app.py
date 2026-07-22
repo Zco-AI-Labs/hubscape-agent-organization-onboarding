@@ -295,7 +295,70 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
         try:
             # Enter the context session to ensure all Firestore calls in tools are authenticated
             with hubscape_adk.context_session(remote_ctx):
+                # 1. Restore ADK session trajectory from Firestore if available
+                try:
+                    session_doc = remote_ctx.get(scope="user", collection_name="sessions", doc_id=session_id_resolved)
+                    if session_doc and "adk_session" in session_doc:
+                        adk_session_json = session_doc["adk_session"]
+                        from google.adk.sessions import Session
+                        session_obj = Session.model_validate_json(adk_session_json)
+                        
+                        runner = await self._resolve_runner()
+                        app_name = session_obj.app_name
+                        user_id_field = session_obj.user_id
+                        sid = session_obj.id
+                        
+                        if app_name not in runner.session_service.sessions:
+                            runner.session_service.sessions[app_name] = {}
+                        if user_id_field not in runner.session_service.sessions[app_name]:
+                            runner.session_service.sessions[app_name][user_id_field] = {}
+                        runner.session_service.sessions[app_name][user_id_field][sid] = session_obj
+                except Exception as restore_err:
+                    import logging
+                    logging.warning("⚠️ Non-critical: Failed to restore session trajectory: %s", restore_err)
+
+                # Ensure active session object is created/fetched and linked to remote_ctx before tools run
+                try:
+                    runner = await self._resolve_runner()
+                    session_obj = await runner.session_service.get_session(
+                        app_name=runner.app_name,
+                        user_id=user_id_resolved,
+                        session_id=session_id_resolved
+                    )
+                    if not session_obj:
+                        session_obj = await runner.session_service.create_session(
+                            app_name=runner.app_name,
+                            user_id=user_id_resolved,
+                            session_id=session_id_resolved
+                        )
+                    remote_ctx.session = session_obj
+                except Exception as session_init_err:
+                    import logging
+                    logging.warning("⚠️ Non-critical: Failed to bind session to context: %s", session_init_err)
+
                 await super().execute(context, interceptor)
+
+                # 2. Persist updated ADK session state back to Firestore
+                try:
+                    runner = await self._resolve_runner()
+                    updated_session = await runner.session_service.get_session(
+                        app_name=runner.app_name,
+                        user_id=user_id_resolved,
+                        session_id=session_id_resolved
+                    )
+                    if updated_session:
+                        serialized_json = updated_session.model_dump_json()
+                        remote_ctx.save(
+                            scope="user",
+                            collection_name="sessions",
+                            doc_id=session_id_resolved,
+                            data={
+                                "adk_session": serialized_json
+                            }
+                        )
+                except Exception as save_err:
+                    import logging
+                    logging.warning("⚠️ Non-critical: Failed to save session trajectory: %s", save_err)
         finally:
             root_agent.instruction = base_instruction
 
