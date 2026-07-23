@@ -298,8 +298,8 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
             import logging
             logging.warning("Failed to dynamically register BillingContextLogRecordProcessor: %s", otel_reg_err)
 
-        # Determine the user ID the runner will use internally (A2A fallback is A2A_USER_{context_id})
-        runner_user_id = f"A2A_USER_{session_id_resolved}"
+        # Determine the user ID the runner will use internally
+        runner_user_id = user_id_resolved
         if hasattr(context, "call_context") and context.call_context and hasattr(context.call_context, "user") and context.call_context.user and getattr(context.call_context.user, "user_name", None):
             runner_user_id = context.call_context.user.user_name
 
@@ -324,9 +324,10 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
                         
                         if app_name not in runner.session_service.sessions:
                             runner.session_service.sessions[app_name] = {}
-                        if runner_user_id not in runner.session_service.sessions[app_name]:
-                            runner.session_service.sessions[app_name][runner_user_id] = {}
-                        runner.session_service.sessions[app_name][runner_user_id][sid] = session_obj
+                        for u_key in set([user_id_resolved, runner_user_id, f"A2A_USER_{session_id_resolved}"]):
+                            if u_key not in runner.session_service.sessions[app_name]:
+                                runner.session_service.sessions[app_name][u_key] = {}
+                            runner.session_service.sessions[app_name][u_key][sid] = session_obj
                 except Exception as restore_err:
                     import logging
                     logging.warning("⚠️ Non-critical: Failed to restore session trajectory: %s", restore_err)
