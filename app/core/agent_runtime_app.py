@@ -333,7 +333,7 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
                         from google.adk.sessions import Session
                         session_obj = Session.model_validate_json(adk_session_json)
                         
-                        runner = self.runner
+                        runner = await self._resolve_runner()
                         app_name = runner.app_name
                         sid = session_obj.id
                         
@@ -352,7 +352,7 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
 
                 # Ensure active session object is created/fetched and linked to remote_ctx before tools run
                 try:
-                    runner = self.runner
+                    runner = await self._resolve_runner()
                     session_obj = await runner.session_service.get_session(
                         app_name=runner.app_name,
                         user_id=runner_user_id,
@@ -374,7 +374,7 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
 
                 # 2. Persist updated ADK session state back to Firestore
                 try:
-                    runner = self.runner
+                    runner = await self._resolve_runner()
                     updated_session = await runner.session_service.get_session(
                         app_name=runner.app_name,
                         user_id=runner_user_id,
