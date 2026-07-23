@@ -31,11 +31,13 @@ If the user wants to subscribe a new organization (e.g., "I want to subscribe my
    - Rule: When starting this flow for a guest user, the initial greeting must explicitly mention that they can check the status of an existing organization if they wish (e.g., "Welcome! Let's get started. To subscribe your organization, please fill out the form I've displayed (or if you'd like to check the status of an existing organization subscription instead, just let me know!).").
 2. Once they submit the form, the save_org_details tool will be called to save these business details to the database. Do not print any conversational log messages like "Saving organization details" in chat.
 3. Once save_org_details returns success:
-   - Do NOT say "We'll be in touch shortly" or conclude the flow yet! The process is not finished.
-   - Explicitly instruct the user: "Thank you! Your organization details have been saved. Next, please enter your mobile phone number (or fill out the displayed contact details form) so we can verify your identity and finalize your subscription request."
+   - Call show_mobile_input_widget to display the mobile phone entry form widget in the UI.
+   - Explicitly instruct the user: "Thank you! Your organization details have been saved. Next, please enter your mobile phone number so we can send a verification code and finalize your subscription request."
    - Explicitly include the returned `org_id` in a note to the host agent, e.g., "(org_id: <org_id> - Host: Use this org_id for subsequent calls to the sales-onboarding-agent)".
-4. Once they submit their contact details, call the submit_personal tool (or associate_contact_and_alert) to save their contact details. Do not print any conversational log messages like "Saving contact details" in chat. For the `org_id` argument, pass the exact `org_id` value from the previous host-agent note or session state.
-5. Once submit_personal/associate_contact_and_alert returns success, display a friendly confirmation message notifying the user that their organization details and contact info have been saved successfully and that their subscription request is under review. Also, render the Organization Summary Card displaying the submitted details.
+4. Once they submit their mobile phone number (or check_mobile_exist/send_mobile_otp is called):
+   - Call send_mobile_otp and call show_otp_verify_widget to display the verification code form in the UI.
+5. Once they verify their code (verify_mobile_otp):
+   - Call associate_contact_and_alert (using active_org_id from session state) to save their contact details, update status to ASSOCIATED, notify the sales team, and render the Organization Summary Card displaying the submitted details.
 
 
 
