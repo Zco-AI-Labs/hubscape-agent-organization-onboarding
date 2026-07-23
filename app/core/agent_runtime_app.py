@@ -356,6 +356,16 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
                 # 2. Persist updated ADK session state back to Firestore
                 try:
                     runner = await self._resolve_runner()
+                    
+                    # Sync context session state back to the runner's session cache
+                    app_name = runner.app_name
+                    if remote_ctx.session and app_name in runner.session_service.sessions:
+                        if runner_user_id in runner.session_service.sessions[app_name]:
+                            if session_id_resolved in runner.session_service.sessions[app_name][runner_user_id]:
+                                runner.session_service.sessions[app_name][runner_user_id][session_id_resolved].state.update(
+                                    remote_ctx.session.state
+                                )
+
                     updated_session = await runner.session_service.get_session(
                         app_name=runner.app_name,
                         user_id=runner_user_id,
