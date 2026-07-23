@@ -52,6 +52,7 @@ Ask the user: Option A (simple single-project) or Option B (full CI/CD pipeline 
 
 ## Operational Guidelines for Coding Agents
 
+- **SKILL.md as Single Source of Truth**: `app/SKILL.md` is mandatory. The YAML frontmatter (`name:`, `description:`) and markdown body are parsed directly by `app/agent.py` at runtime and synced during deployment. Do NOT hardcode agent names or prompts inside `app/agent.py`.
 - **Code preservation**: Only modify code directly targeted by the user's request. Preserve all surrounding code, config values (e.g., `model`), comments, and formatting.
 - **NEVER change the model** unless explicitly asked.
 - **Model 404 errors**: Fix `GOOGLE_CLOUD_LOCATION` (e.g., `global` instead of `us-east1`), not the model name.

@@ -1,7 +1,6 @@
 import os
 import uuid
-import importlib.util
-import urllib.request
+import json
 import time
 from google.genai import types
 from google.adk.runners import Runner
@@ -17,7 +16,6 @@ class GEAPAgentWrapper:
         start_time = time.time()
         core_dir = os.path.dirname(os.path.abspath(__file__))
         runtime_dir = os.path.abspath(os.path.join(core_dir, ".."))
-        
 
         user_id = (context or {}).get("userId") or (context or {}).get("user_id") or "anonymous_user"
         org_id = (context or {}).get("orgId") or (context or {}).get("org_id")
@@ -36,9 +34,9 @@ class GEAPAgentWrapper:
             raw_context=context
         )
         
-        session_id = (context or {}).get("sessionId") or f"session_{user_id}_{hub_id}"
+        session_id = (context or {}).get("sessionId") or (context or {}).get("session_id") or f"session_{user_id}_{hub_id}"
         
-        # --- OPENTELEMETRY CONTEXT ENRICHMENT (OPTION A) ---
+        # --- OPENTELEMETRY CONTEXT ENRICHMENT ---
         try:
             from opentelemetry import trace
             current_span = trace.get_current_span()
@@ -50,48 +48,119 @@ class GEAPAgentWrapper:
                 current_span.set_attribute("gen_ai.request.model", self.agent.model.model_name)
                 current_span.set_attribute("provider", "vertex")
                 
-                # Determine query type (direct vs nested A2A) using call depth
                 depth = (context or {}).get("depth", 0)
                 request_type = "a2a" if depth > 0 else "direct"
                 current_span.set_attribute("gen_ai.request.type", request_type)
-        except Exception as otel_err:
-            print(f"⚠️ Failed to set OpenTelemetry span attributes: {otel_err}")
-        # ----------------------------------------------------
+        except Exception:
+            pass
         
         with hubscape_adk.context_session(remote_ctx):
-            if not self.runner:
-                from google.adk.sessions.in_memory_session_service import InMemorySessionService
-                from google.adk.artifacts.in_memory_artifact_service import InMemoryArtifactService
-                from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
-                from google.adk.auth.credential_service.in_memory_credential_service import InMemoryCredentialService
-                
-                self.runner = Runner(
-                    agent=self.agent,
-                    app_name=self.app_name,
-                    session_service=InMemorySessionService(),
-                    artifact_service=InMemoryArtifactService(),
-                    memory_service=InMemoryMemoryService(),
-                    credential_service=InMemoryCredentialService(),
-                    auto_create_session=True
-                )
+            from google.adk.sessions.in_memory_session_service import InMemorySessionService
+            from google.adk.artifacts.in_memory_artifact_service import InMemoryArtifactService
+            from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
+            from google.adk.auth.credential_service.in_memory_credential_service import InMemoryCredentialService
+            
+            session_service = InMemorySessionService()
+            artifact_service = InMemoryArtifactService()
+            memory_service = InMemoryMemoryService()
+            credential_service = InMemoryCredentialService()
+
+            # 1. Restore ADK session trajectory from Firestore if available
+            try:
+                session_doc = remote_ctx.get(scope="user", collection_name="sessions", doc_id=session_id)
+                if session_doc and "adk_session" in session_doc:
+                    adk_session_json = session_doc["adk_session"]
+                    from google.adk.sessions import Session
+                    session_obj = Session.model_validate_json(adk_session_json)
+                    
+                    app_name = session_obj.app_name
+                    uid = session_obj.user_id
+                    sid = session_obj.id
+                    
+                    if app_name not in session_service.sessions:
+                        session_service.sessions[app_name] = {}
+                    if uid not in session_service.sessions[app_name]:
+                        session_service.sessions[app_name][uid] = {}
+                    session_service.sessions[app_name][uid][sid] = session_obj
+            except Exception as restore_err:
+                print(f"⚠️ Non-critical: Failed to restore session trajectory: {restore_err}")
+
+            workspace_type = (context or {}).get("workspaceType")
+            workspace_id = (context or {}).get("workspaceId")
+            if not workspace_type or not workspace_id:
+                is_org_scope = (hub_id == org_id) or (not hub_id) or (hub_id == "platform")
+                workspace_type = "organization" if is_org_scope else "hub"
+                workspace_id = org_id if is_org_scope else hub_id
+
+            cloned_agent = self.agent.clone()
+            from app.core.hubscape_adk import filter_tools_for_scope
+            cloned_agent.tools = filter_tools_for_scope(self.agent.tools, workspace_type)
+            
+            raw_mode = (context or {}).get("interaction_mode") or (context or {}).get("mode") or "chat_pc"
+            normalized_mode = "chat_pc" if raw_mode == "chat_phone" else raw_mode
+            session_context = (
+                f"[ACTIVE WORKSPACE CONTEXT]\n"
+                f"- Interaction Mode: {normalized_mode}\n"
+                f"- Workspace Type: {workspace_type}\n"
+                f"- Workspace ID: {workspace_id or 'none'}\n"
+                f"- Organization ID: {org_id or 'none'}\n"
+            )
+            base_instruction = self.agent.instruction or ""
+            cloned_agent.instruction = f"{session_context}\n{base_instruction}"
+            
+            # Create a fresh runner for this request to guarantee thread safety
+            runner = Runner(
+                agent=cloned_agent,
+                app_name=self.app_name,
+                session_service=session_service,
+                artifact_service=artifact_service,
+                memory_service=memory_service,
+                credential_service=credential_service,
+                auto_create_session=True
+            )
             
             new_message = types.Content(
                 parts=[types.Part.from_text(text=question)]
             )
             
-            text_response = ""
-            async for event in self.runner.run_async(
+            collected_outputs = []
+            async for event in runner.run_async(
                 user_id=user_id,
                 session_id=session_id,
                 new_message=new_message
             ):
-                if event.output:
-                    text_response += event.output
-                elif event.content and event.content.parts:
-                    for part in event.content.parts:
-                        if part.text:
-                            text_response += part.text
+                out = getattr(event, "output", None)
+                if not out and getattr(event, "content", None) and getattr(event.content, "parts", None):
+                    text_parts = [p.text for p in event.content.parts if getattr(p, "text", None)]
+                    if text_parts:
+                        out = "\n".join(text_parts)
+                if out and isinstance(out, str) and out.strip():
+                    clean_out = out.strip()
+                    if not collected_outputs or clean_out != collected_outputs[-1].strip():
+                        collected_outputs.append(clean_out)
             
+            text_response = "\n".join(collected_outputs)
+            
+            # 2. Persist updated ADK session state back to Firestore
+            try:
+                updated_session = await runner.session_service.get_session(
+                    app_name=self.app_name,
+                    user_id=user_id,
+                    session_id=session_id
+                )
+                if updated_session:
+                    serialized_json = updated_session.model_dump_json()
+                    remote_ctx.save(
+                        scope="user",
+                        collection_name="sessions",
+                        doc_id=session_id,
+                        data={
+                            "adk_session": serialized_json
+                        }
+                    )
+            except Exception as save_err:
+                print(f"⚠️ Non-critical: Failed to save session trajectory: {save_err}")
+
             # Record final execution latency on active span
             try:
                 from opentelemetry import trace
@@ -99,7 +168,8 @@ class GEAPAgentWrapper:
                 if current_span:
                     latency_ms = (time.time() - start_time) * 1000.0
                     current_span.set_attribute("latency_ms", float(latency_ms))
-            except Exception as otel_err:
+            except Exception:
                 pass
                 
             return text_response
+

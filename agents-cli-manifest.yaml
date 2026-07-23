@@ -1,5 +1,5 @@
 name: "custom-agent"
-acli_version: "0.5.1"
+acli_version: "1.1.0"
 agent_directory: "app"
 region: "us-central1"
 base_template: "adk"

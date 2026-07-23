@@ -2,6 +2,9 @@ import contextvars
 import contextlib
 import datetime
 import logging
+import os
+import httpx
+
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -308,6 +311,18 @@ class RemoteContext:
         self.actions.append(action_payload)
         return {"status": "success", "message": "Custom UI layout queued."}
 
+    def close_widget(self, message_id: Optional[str] = None, result_text: Optional[str] = None) -> dict:
+        """Registers a CLOSE_AGENT_WIDGET client action directive to close/unmount an active widget."""
+        action_payload = {
+            "type": "CLOSE_AGENT_WIDGET",
+            "payload": {
+                "messageId": message_id,
+                "resultText": result_text or "✅ Widget closed."
+            }
+        }
+        self.actions.append(action_payload)
+        return {"status": "success", "message": "Close widget directive queued."}
+
     def send_otp(self, phone_number: str) -> dict:
         """
         Sends an SMS OTP code to the target phone number via the Hubscape central backend.
@@ -378,6 +393,100 @@ class RemoteContext:
         if resp.status_code != 200:
             raise RuntimeError(f"OTP verification request failed: {resp.text}")
         return resp.json()
+
+    def get_agent_token(self, token_name: str) -> Optional[dict]:
+        """Retrieves stored integration token credentials for the user."""
+        return self.get(scope="user", collection_name="tokens", doc_id=token_name)
+
+    def save_agent_token(self, token_name: str, data: dict) -> dict:
+        """Saves integration token credentials for the user."""
+        return self.save(scope="user", collection_name="tokens", doc_id=token_name, data=data)
+
+    async def get_oauth_token(self, provider: str) -> Optional[str]:
+        """
+        Gets the active oauth access token, performing a token refresh if expired.
+        """
+        token_data = self.get_agent_token(provider)
+        if not token_data:
+            return None
+
+        access_token = token_data.get("access_token")
+        refresh_token = token_data.get("refresh_token")
+        expires_at_str = token_data.get("expires_at")
+
+        # Check if expired or about to expire in the next 60 seconds
+        is_expired = False
+        if expires_at_str:
+            try:
+                expires_at = datetime.datetime.fromisoformat(expires_at_str)
+                now = datetime.datetime.now(datetime.timezone.utc)
+                if expires_at - now < datetime.timedelta(seconds=60):
+                    is_expired = True
+            except Exception:
+                is_expired = True
+
+        # Perform token refresh if expired and we have a refresh token
+        if is_expired and refresh_token:
+            client_id = os.getenv(f"{provider.upper()}_CLIENT_ID")
+            client_secret = os.getenv(f"{provider.upper()}_CLIENT_SECRET")
+
+            # Fallback configuration endpoints if not defined on platform
+            token_urls = {
+                "github": "https://github.com/login/oauth/access_token",
+                "google": "https://oauth2.googleapis.com/token",
+                "jira": "https://auth.atlassian.com/oauth/token",
+                "slack": "https://slack.com/api/oauth.v2.access"
+            }
+            token_url = token_urls.get(provider)
+
+            if client_id and client_secret and token_url:
+                payload = {
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "refresh_token": refresh_token,
+                    "grant_type": "refresh_token"
+                }
+                headers = {"Accept": "application/json"}
+                try:
+                    async with httpx.AsyncClient() as client:
+                        resp = await client.post(token_url, data=payload, headers=headers, timeout=10.0)
+                        if resp.status_code == 200:
+                            token_resp = resp.json()
+                            refreshed_data = {
+                                "access_token": token_resp.get("access_token"),
+                                "refresh_token": token_resp.get("refresh_token", refresh_token),
+                                "expires_in": token_resp.get("expires_in"),
+                                "token_type": token_resp.get("token_type", "Bearer"),
+                                "scope": token_resp.get("scope", token_data.get("scope", ""))
+                            }
+                            # Calculate new expiration datetime
+                            if "expires_in" in token_resp:
+                                exp = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=int(token_resp["expires_in"]))
+                                refreshed_data["expires_at"] = exp.isoformat()
+                                
+                            self.save_agent_token(provider, refreshed_data)
+                            return refreshed_data.get("access_token")
+                except Exception as e:
+                    logger.warning(f"Failed to refresh expired OAuth token for {provider}: {e}")
+
+        return access_token
+
+    def trigger_oauth_flow(self, provider: str, redirect_back: Optional[str] = None) -> dict:
+        """Triggers local mock OAuth authentication challenge payload."""
+        return {
+            "status": "error",
+            "message": f"Authorization required for {provider}.",
+            "error_type": "AUTH_REQUIRED",
+            "system_action": {
+                "type": "TRIGGER_OAUTH",
+                "payload": {
+                    "provider": provider,
+                    "agent_id": self.agent_id,
+                    "redirect_back": redirect_back
+                }
+            }
+        }
+
 
 def get_context() -> RemoteContext:
     try:
@@ -500,6 +609,7 @@ def require_tool_privilege(func):
                 fernet = Fernet(derived_key.encode())
                 decrypted_bytes = fernet.decrypt(encrypted_segment.encode())
                 allowed_privilege_ids = json.loads(decrypted_bytes.decode())
+                logging.getLogger(__name__).info(f"[adk] Decrypted allowed privilege IDs: {allowed_privilege_ids}")
             except Exception as decrypt_err:
                 raise PermissionError(f"Security Block: Failed to decrypt capabilities: {decrypt_err}")
                 
@@ -519,6 +629,7 @@ def require_tool_privilege(func):
                         priv_info = privileges_config.get(priv_id) or {}
                         tools = priv_info.get("tools") or []
                         allowed_tools.extend(tools)
+                    logging.getLogger(__name__).info(f"[adk] Mapped allowed tools: {allowed_tools}")
                 except Exception as read_err:
                     logging.getLogger(__name__).warning(f"⚠️ Failed to read/parse privileges.json: {read_err}")
                 
@@ -544,3 +655,62 @@ def require_tool_privilege(func):
             verify_privilege()
             return func(*args, **kwargs)
         return sync_wrapper
+
+
+def tool_scope(allowed_scopes: list[str]):
+    """
+    Decorator to restrict the workspace scopes in which this tool is allowed to be invoked.
+    Example:
+        @tool_scope(["hub"])
+        async def my_hub_only_tool():
+            ...
+    """
+    def decorator(func):
+        func._allowed_scopes = allowed_scopes
+        return func
+    return decorator
+
+
+def filter_tools_for_scope(tools: list, hub_id: str | None, org_id: str | None = None) -> list:
+    """
+    Filters the tools list based on the workspace scope (hub vs. org).
+    Tools decorated with @tool_scope will only be included if the active scope
+    is present in their allowed_scopes list. Tools without the decorator are
+    included by default.
+    """
+    if org_id is not None:
+        # Legacy fallback signature: (tools, hub_id, org_id)
+        is_org_scope = (hub_id == org_id) or (not hub_id) or (hub_id == "platform")
+        active_scope = "org" if is_org_scope else "hub"
+    else:
+        # New signature: (tools, workspace_type) where hub_id parameter holds workspace_type
+        wtype = hub_id or "hub"
+        if wtype in ("organization", "org", "platform"):
+            active_scope = "org"
+        else:
+            active_scope = "hub"
+            
+    import logging
+    logging.info(f"[adk] filter_tools_for_scope: active_scope={active_scope}, input tools count={len(tools)}")
+    filtered = []
+    for tool in tools:
+        tool_name = getattr(tool, "__name__", str(tool))
+        # Check __wrapped__ chain for _allowed_scopes attribute to support decorators
+        allowed_scopes = getattr(tool, "_allowed_scopes", None)
+        if allowed_scopes is None:
+            wrapped = getattr(tool, "__wrapped__", None)
+            while wrapped is not None:
+                allowed_scopes = getattr(wrapped, "_allowed_scopes", None)
+                if allowed_scopes is not None:
+                    break
+                wrapped = getattr(wrapped, "__wrapped__", None)
+                
+        logging.info(f"[adk] Tool: {tool_name}, allowed_scopes={allowed_scopes}")
+        if allowed_scopes is not None:
+            if active_scope not in allowed_scopes:
+                logging.info(f"[adk]   Skipped {tool_name} (active_scope {active_scope} not in {allowed_scopes})")
+                continue
+        logging.info(f"[adk]   Kept {tool_name}")
+        filtered.append(tool)
+    return filtered
+

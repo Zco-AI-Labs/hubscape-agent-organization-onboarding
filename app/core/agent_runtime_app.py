@@ -73,6 +73,7 @@ telemetry_org_id = ContextVar("telemetry_org_id", default=None)
 telemetry_hub_id = ContextVar("telemetry_hub_id", default=None)
 telemetry_user_id = ContextVar("telemetry_user_id", default=None)
 telemetry_conversation_id = ContextVar("telemetry_conversation_id", default=None)
+request_runner_ctx = ContextVar("request_runner_ctx", default=None)
 
 from app.agent import app as adk_app
 from app.app_utils.telemetry import setup_telemetry
@@ -146,6 +147,12 @@ class ActionInterceptingEventQueue(EventQueue):
 
 class AgentEngineA2aExecutor(A2aAgentExecutor):
     """Custom A2A Executor that intercepts requests to inject RemoteContext."""
+    async def _resolve_runner(self) -> Runner:
+        scoped = request_runner_ctx.get()
+        if scoped is not None:
+            return scoped
+        return await super()._resolve_runner()
+
     async def execute(
         self,
         context: RequestContext,
@@ -179,13 +186,32 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
         
         interceptor = ActionInterceptingEventQueue(event_queue, remote_ctx)
         
-        base_instruction = root_agent.instruction or ""
+        # Resolve the runner and clone the agent to ensure request-scoped concurrency safety
+        base_runner = await super()._resolve_runner()
+        cloned_agent = base_runner.agent.clone()
+        
+        workspace_type = metadata.get("workspaceType")
+        workspace_id = metadata.get("workspaceId")
+        if not workspace_type or not workspace_id:
+            is_org_scope = (hub_id == org_id) or (not hub_id) or (hub_id == "platform")
+            workspace_type = "organization" if is_org_scope else "hub"
+            workspace_id = org_id if is_org_scope else hub_id
+
+        # Concurrency-safe dynamic tool filtering based on workspace scope
+        from app.core.hubscape_adk import filter_tools_for_scope
+        cloned_agent.tools = filter_tools_for_scope(base_runner.agent.tools, workspace_type)
+        
+        base_instruction = base_runner.agent.instruction or ""
         
         # Inject Active Session Context securely at the top of the prompt (excluding sensitive database UUIDs to prevent logging leaks)
-        session_context = f"""
-[ACTIVE SESSION CONTEXT]
-- Interaction Mode: {mode}
-"""
+        normalized_mode = "chat_pc" if mode in ("chat_pc", "chat_phone") else mode
+        session_context = (
+            "[ACTIVE WORKSPACE CONTEXT]\n"
+            f"- Interaction Mode: {normalized_mode}\n"
+            f"- Workspace Type: {workspace_type}\n"
+            f"- Workspace ID: {workspace_id or 'none'}\n"
+            f"- Organization ID: {org_id or 'none'}\n"
+        )
         
         # Format and append accessible agents roster
         accessible_agents = metadata.get("accessible_agents", [])
@@ -195,7 +221,20 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
                 f"- {a.get('name')} (ID: {a.get('id')}): {a.get('description')}" for a in accessible_agents
             ) + "\n"
             
-        root_agent.instruction = f"{session_context}{roster_str}\n{base_instruction}"
+        cloned_agent.instruction = f"{session_context}{roster_str}\n{base_instruction}"
+        
+        # Instantiate a request-scoped runner to avoid polluting the process-wide singleton
+        scoped_runner = Runner(
+            agent=cloned_agent,
+            app_name=base_runner.app_name,
+            session_service=base_runner.session_service,
+            artifact_service=getattr(base_runner, "artifact_service", None),
+            memory_service=getattr(base_runner, "memory_service", None),
+            credential_service=getattr(base_runner, "credential_service", None),
+            auto_create_session=getattr(base_runner, "auto_create_session", False),
+        )
+        
+        token = request_runner_ctx.set(scoped_runner)
         
         # --- OPENTELEMETRY CONTEXT ENRICHMENT ---
         session_id_resolved = metadata.get("sessionId") or metadata.get("session_id") or f"session_{user_id_resolved}_{hub_id}"
@@ -239,6 +278,9 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
                     from opentelemetry.sdk._logs import LogRecordProcessor
 
                     class BillingContextLogRecordProcessor(LogRecordProcessor):
+                        def emit(self, log_record, context=None):
+                            self.on_emit(log_record, context)
+
                         def on_emit(self, log_record, context=None):
                             try:
                                 # 1. Try tracing span attributes
@@ -297,7 +339,7 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
             with hubscape_adk.context_session(remote_ctx):
                 await super().execute(context, interceptor)
         finally:
-            root_agent.instruction = base_instruction
+            request_runner_ctx.reset(token)
 
         # Determine if there are actions to propagate
         has_actions = bool(remote_ctx.actions)
@@ -325,8 +367,7 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
                         "directive": "execute_host_tool",
                         "target_tool": "openAdminWidget",
                         "parameters": {
-                            "widgetType": payload.get("widgetType"),
-                            "confirmation_obtained": payload.get("confirmation_obtained", True)
+                            "widgetType": payload.get("widgetType")
                         },
                         "message": interceptor.accumulated_text or "Opening admin widget."
                     }
