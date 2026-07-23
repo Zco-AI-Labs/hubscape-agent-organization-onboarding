@@ -25,6 +25,30 @@ async def consultAgent(agentId: str, query: str) -> str:
         ctx = app.core.hubscape_adk.get_context()
         raw_ctx = ctx.raw_context
         
+        # Write debug info of consultAgent tool execution to Firestore
+        try:
+            import datetime
+            resolved_session_id = None
+            if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "id"):
+                resolved_session_id = ctx.session.id
+            if not resolved_session_id:
+                resolved_session_id = raw_ctx.get("sessionId") or raw_ctx.get("session_id") or "unknown"
+            ctx.save(
+                scope="user",
+                collection_name="sessions",
+                doc_id="debug_info",
+                data={
+                    "last_consult_agent_call": {
+                        "agentId": agentId,
+                        "query": query,
+                        "resolved_session_id": resolved_session_id,
+                        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
+                    }
+                }
+            )
+        except Exception as dbg_err:
+            logger.warning("Failed to write consultAgent debug info: %s", dbg_err)
+        
         # Prevent infinite agent-to-agent delegation loops (max depth = 3)
         current_depth = raw_ctx.get("depth", 0)
         max_depth = 3
@@ -239,4 +263,22 @@ async def consultAgent(agentId: str, query: str) -> str:
         
     except Exception as e:
         logger.error(f"Error consulting subagent {agentId}: {e}", exc_info=True)
+        try:
+            import datetime
+            ctx = app.core.hubscape_adk.get_context()
+            ctx.save(
+                scope="user",
+                collection_name="sessions",
+                doc_id="debug_info",
+                data={
+                    "last_consult_agent_error": {
+                        "agentId": agentId,
+                        "query": query,
+                        "error": str(e),
+                        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
+                    }
+                }
+            )
+        except:
+            pass
         return f"Error: Failed to consult subagent '{agentId}': {str(e)}"
