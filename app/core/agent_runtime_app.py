@@ -298,6 +298,11 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
             import logging
             logging.warning("Failed to dynamically register BillingContextLogRecordProcessor: %s", otel_reg_err)
 
+        # Determine the user ID the runner will use internally (A2A fallback is A2A_USER_{context_id})
+        runner_user_id = f"A2A_USER_{session_id_resolved}"
+        if hasattr(context, "call_context") and context.call_context and hasattr(context.call_context, "user") and context.call_context.user and getattr(context.call_context.user, "user_name", None):
+            runner_user_id = context.call_context.user.user_name
+
         try:
             # Enter the context session to ensure all Firestore calls in tools are authenticated
             with hubscape_adk.context_session(remote_ctx):
@@ -310,15 +315,18 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
                         session_obj = Session.model_validate_json(adk_session_json)
                         
                         runner = self.runner
-                        app_name = session_obj.app_name
-                        user_id_field = session_obj.user_id
+                        app_name = runner.app_name
                         sid = session_obj.id
+                        
+                        # Ensure fields match current context
+                        session_obj.app_name = app_name
+                        session_obj.user_id = user_id_resolved
                         
                         if app_name not in runner.session_service.sessions:
                             runner.session_service.sessions[app_name] = {}
-                        if user_id_field not in runner.session_service.sessions[app_name]:
-                            runner.session_service.sessions[app_name][user_id_field] = {}
-                        runner.session_service.sessions[app_name][user_id_field][sid] = session_obj
+                        if runner_user_id not in runner.session_service.sessions[app_name]:
+                            runner.session_service.sessions[app_name][runner_user_id] = {}
+                        runner.session_service.sessions[app_name][runner_user_id][sid] = session_obj
                 except Exception as restore_err:
                     import logging
                     logging.warning("⚠️ Non-critical: Failed to restore session trajectory: %s", restore_err)
@@ -328,15 +336,16 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
                     runner = self.runner
                     session_obj = await runner.session_service.get_session(
                         app_name=runner.app_name,
-                        user_id=user_id_resolved,
+                        user_id=runner_user_id,
                         session_id=session_id_resolved
                     )
                     if not session_obj:
                         session_obj = await runner.session_service.create_session(
                             app_name=runner.app_name,
-                            user_id=user_id_resolved,
+                            user_id=runner_user_id,
                             session_id=session_id_resolved
                         )
+                    session_obj.user_id = user_id_resolved
                     remote_ctx.session = session_obj
                 except Exception as session_init_err:
                     import logging
@@ -349,10 +358,11 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
                     runner = self.runner
                     updated_session = await runner.session_service.get_session(
                         app_name=runner.app_name,
-                        user_id=user_id_resolved,
+                        user_id=runner_user_id,
                         session_id=session_id_resolved
                     )
                     if updated_session:
+                        updated_session.user_id = user_id_resolved
                         serialized_json = updated_session.model_dump_json()
                         remote_ctx.save(
                             scope="user",
