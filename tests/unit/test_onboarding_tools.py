@@ -11,6 +11,12 @@ from app.scripts.check_mobile_exist import check_mobile_exist
 from app.scripts.send_mobile_otp import send_mobile_otp
 from app.scripts.verify_mobile_otp import verify_mobile_otp
 from app.scripts.associate_contact_and_alert import associate_contact_and_alert
+from app.scripts.show_org_details_form import show_org_details_form
+from app.scripts.show_mobile_input_widget import show_mobile_input_widget
+from app.scripts.show_otp_verify_widget import show_otp_verify_widget
+from app.scripts.show_personal_details_widget import show_personal_details_widget
+from app.scripts.show_contact_form import show_contact_form
+from app.scripts.submit_personal import submit_personal
 
 # Mock default GCP credentials and project settings
 os.environ["GOOGLE_CLOUD_PROJECT"] = "dummy-project"
@@ -30,7 +36,7 @@ def mock_db():
     db = {}
     
     # Default registered users setup for both agent IDs
-    for agent_id in ["organization_subscription_agent", "organization-onboarding-agent", "default_agent"]:
+    for agent_id in ["organization_subscription_agent", "organization-onboarding-agent", "sales-onboarding-agent", "sales_onboarding_agent", "default_agent"]:
         db[f"agents/{agent_id}/agent_data/platform/registered_users/5550199"] = {
             "mobile_number": "555-0199",
             "full_name": "Alex Doe",
@@ -104,8 +110,7 @@ async def test_save_org_details() -> None:
         res = await save_org_details(
             org_name="Apex Innovations",
             org_description="Robotic research",
-            org_email="info@apex.com",
-            org_phone="555-0199",
+            org_website="apex.com",
             user_position="CEO"
         )
         assert res["status"] == "success"
@@ -115,6 +120,7 @@ async def test_save_org_details() -> None:
         leads = ctx.list(scope="platform", collection_name="leads")
         assert len(leads) == 1
         assert leads[0]["org_name"] == "Apex Innovations"
+        assert leads[0]["org_website"] == "apex.com"
         assert leads[0]["status"] == "UNVERIFIED"
 
 @pytest.mark.asyncio
@@ -172,7 +178,7 @@ async def test_associate_contact_and_alert() -> None:
     ctx.show_widget = MagicMock()
     with context_session(ctx):
         # Save lead first
-        save_res = await save_org_details("Apex", "Robotics", "info@apex.com", "555-0199", "CEO")
+        save_res = await save_org_details("Apex", "Robotics", "apex.com", "CEO")
         org_id = save_res["org_id"]
         
         # Associate
@@ -193,13 +199,12 @@ async def test_associate_contact_and_alert() -> None:
         assert len(alerts) == 1
         
         # Verify show_widget was called
-        ctx.show_widget.assert_called_once_with(
+        ctx.show_widget.assert_called_with(
             "org_summary_card",
             data={
                 "summary_name": "Apex",
                 "summary_description": "Robotics",
-                "summary_email": "info@apex.com",
-                "summary_phone": "555-0199"
+                "summary_website": "apex.com"
             }
         )
 
@@ -222,18 +227,34 @@ async def test_mobile_normalization() -> None:
         assert verify_res["valid"] is True
 
 @pytest.mark.asyncio
-async def test_save_org_details_invalid_email() -> None:
+async def test_save_org_details_invalid_website() -> None:
     ctx = RemoteContext(user_id="guest_user")
     with context_session(ctx):
         res = await save_org_details(
             org_name="Apex Innovations",
             org_description="Robotic research",
-            org_email="invalid_email",
-            org_phone="555-0199",
+            org_website="invalid_website",
             user_position="CEO"
         )
         assert res["status"] == "error"
-        assert "Invalid organization email format" in res["message"]
+        assert "Invalid organization website format" in res["message"]
+
+@pytest.mark.asyncio
+async def test_save_org_details_empty_website() -> None:
+    ctx = RemoteContext(user_id="guest_user")
+    with context_session(ctx):
+        res = await save_org_details(
+            org_name="Apex Innovations",
+            org_description="Robotic research",
+            org_website="",
+            user_position="CEO"
+        )
+        assert res["status"] == "success"
+        assert "org_id" in res
+        
+        leads = ctx.list(scope="platform", collection_name="leads")
+        assert len(leads) == 1
+        assert leads[0]["org_website"] == ""
 
 @pytest.mark.asyncio
 async def test_associate_contact_invalid_email() -> None:
@@ -243,8 +264,7 @@ async def test_associate_contact_invalid_email() -> None:
         org_res = await save_org_details(
             org_name="Apex Innovations",
             org_description="Robotics",
-            org_email="info@apex.com",
-            org_phone="555-0199",
+            org_website="apex.com",
             user_position="CEO"
         )
         org_id = org_res["org_id"]
@@ -260,20 +280,6 @@ async def test_associate_contact_invalid_email() -> None:
         assert "Invalid contact email format" in res["message"]
 
 @pytest.mark.asyncio
-async def test_save_org_details_invalid_phone() -> None:
-    ctx = RemoteContext(user_id="guest_user")
-    with context_session(ctx):
-        res = await save_org_details(
-            org_name="Apex Innovations",
-            org_description="Robotic research",
-            org_email="info@apex.com",
-            org_phone="12345",
-            user_position="CEO"
-        )
-        assert res["status"] == "error"
-        assert "Invalid organization phone format" in res["message"]
-
-@pytest.mark.asyncio
 async def test_associate_contact_invalid_phone() -> None:
     ctx = RemoteContext(user_id="guest_user")
     with context_session(ctx):
@@ -281,8 +287,7 @@ async def test_associate_contact_invalid_phone() -> None:
         org_res = await save_org_details(
             org_name="Apex Innovations",
             org_description="Robotics",
-            org_email="info@apex.com",
-            org_phone="555-0199",
+            org_website="apex.com",
             user_position="CEO"
         )
         org_id = org_res["org_id"]
@@ -317,16 +322,6 @@ async def test_verify_otp_invalid_phone() -> None:
 async def test_phone_missing_country_code_fails() -> None:
     ctx = RemoteContext(user_id="guest_user")
     with context_session(ctx):
-        # 10 digits without '+' prefix should fail
-        res = await save_org_details(
-            org_name="Apex Innovations",
-            org_description="Robotics",
-            org_email="info@apex.com",
-            org_phone="9909990890",
-            user_position="CEO"
-        )
-        assert res["status"] == "error"
-        assert "Please include your country code starting with '+'" in res["message"]
 
         res2 = await send_mobile_otp("9909990890")
         assert res2["status"] == "error"
@@ -342,3 +337,100 @@ async def test_phone_with_country_code_passes() -> None:
 
         res2 = await send_mobile_otp("+919909990890")
         assert res2["status"] == "success"
+
+@pytest.mark.asyncio
+async def test_show_widget_tools() -> None:
+    ctx = RemoteContext(user_id="guest_user")
+    ctx.show_widget = MagicMock(return_value={"status": "success"})
+    with context_session(ctx):
+        res1 = await show_org_details_form()
+        ctx.show_widget.assert_called_with("org_details_form")
+        assert res1["status"] == "success"
+
+        res2 = await show_mobile_input_widget()
+        ctx.show_widget.assert_called_with("mobile_input_widget")
+        assert res2["status"] == "success"
+
+        res3 = await show_otp_verify_widget()
+        ctx.show_widget.assert_called_with("otp_verify_widget")
+        assert res3["status"] == "success"
+
+        res4 = await show_personal_details_widget()
+        ctx.show_widget.assert_called_with("personal_details_widget")
+        assert res4["status"] == "success"
+
+        res5 = await show_contact_form()
+        ctx.show_widget.assert_called_with("contact_form")
+        assert res5["status"] == "success"
+
+@pytest.mark.asyncio
+async def test_submit_personal_success() -> None:
+    ctx = RemoteContext(user_id="guest_user")
+    ctx.show_widget = MagicMock()
+    with context_session(ctx):
+        # 1. Save org details first
+        org_res = await save_org_details("Apex Pizza", "Best Pizza", "apex.com", "Manager")
+        org_id = org_res["org_id"]
+        
+        # 2. Submit personal details
+        res = await submit_personal("Alex Doe", "alex@apex.com", org_id)
+        assert res["status"] == "success"
+        
+        # 3. Verify lead document is updated
+        lead = ctx.get(scope="platform", collection_name="leads", doc_id=org_id)
+        assert lead["contact_name"] == "Alex Doe"
+        assert lead["contact_email"] == "alex@apex.com"
+        assert lead["status"] == "ASSOCIATED"
+        
+        # 4. Verify org_summary_card widget was queued
+        ctx.show_widget.assert_any_call("org_summary_card", data={
+            "summary_name": "Apex Pizza",
+            "summary_description": "Best Pizza",
+            "summary_website": "apex.com"
+        })
+
+@pytest.mark.asyncio
+async def test_submit_personal_invalid_email() -> None:
+    ctx = RemoteContext(user_id="guest_user")
+    with context_session(ctx):
+        res = await submit_personal("Alex Doe", "invalid-email", "some_org_id")
+        assert res["status"] == "error"
+        assert "Invalid contact email format" in res["message"]
+
+@pytest.mark.asyncio
+async def test_submit_personal_not_found() -> None:
+    ctx = RemoteContext(user_id="guest_user")
+    with context_session(ctx):
+        res = await submit_personal("Alex Doe", "alex@apex.com", "nonexistent_org_id")
+        assert res["status"] == "error"
+        assert "Lead record nonexistent_org_id not found" in res["message"]
+
+@pytest.mark.asyncio
+async def test_submit_personal_fallback() -> None:
+    ctx = RemoteContext(user_id="guest_user")
+    ctx.show_widget = MagicMock()
+    # Create mock session object
+    class MockSession:
+        def __init__(self):
+            self.state = {}
+    ctx.session = MockSession()
+    
+    with context_session(ctx):
+        # 1. Save org details first
+        org_res = await save_org_details("Apex Pizza", "Best Pizza", "apex.com", "Manager")
+        org_id = org_res["org_id"]
+        
+        # 2. Check if active_org_id was populated in session state
+        assert ctx.session.state["active_org_id"] == org_id
+        
+        # 3. Submit personal details with org_id omitted to test fallback
+        res = await submit_personal("Alex Doe", "alex@apex.com")
+        assert res["status"] == "success"
+        
+        # 4. Verify lead document is updated
+        lead = ctx.get(scope="platform", collection_name="leads", doc_id=org_id)
+        assert lead["contact_name"] == "Alex Doe"
+        assert lead["contact_email"] == "alex@apex.com"
+        assert lead["status"] == "ASSOCIATED"
+
+

@@ -68,6 +68,12 @@ from google.cloud import logging as google_cloud_logging
 from vertexai.preview.reasoning_engines import A2aAgent
 
 from app.core import hubscape_adk
+from contextvars import ContextVar
+telemetry_org_id = ContextVar("telemetry_org_id", default=None)
+telemetry_hub_id = ContextVar("telemetry_hub_id", default=None)
+telemetry_user_id = ContextVar("telemetry_user_id", default=None)
+telemetry_conversation_id = ContextVar("telemetry_conversation_id", default=None)
+
 from app.agent import app as adk_app
 from app.app_utils.telemetry import setup_telemetry
 from app.app_utils.typing import Feedback
@@ -157,6 +163,13 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
         hub_id = metadata.get("hubId") or metadata.get("hub_id")
         mode = metadata.get("mode") or "none"
         
+        session_id_resolved = metadata.get("sessionId") or metadata.get("session_id") or f"session_{user_id_resolved}_{hub_id}"
+        
+        # Align A2A context ID with the resolved session ID to unify session management
+        context._context_id = session_id_resolved
+        if hasattr(context, "_params") and context._params and hasattr(context._params, "message") and context._params.message:
+            context._params.message.context_id = session_id_resolved
+            
         agent_name = root_agent.name.replace('_', '-') if root_agent and hasattr(root_agent, "name") else "custom-agent"
         agent_uuid = str(uuid.uuid5(uuid.NAMESPACE_URL, f"https://github.com/Zco-AI-Labs/{agent_name}"))
         from app.app_utils.env_resolver import get_project_id
@@ -175,12 +188,9 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
         
         base_instruction = root_agent.instruction or ""
         
-        # Inject Active Session Context securely at the top of the prompt
+        # Inject Active Session Context securely at the top of the prompt (excluding sensitive database UUIDs to prevent logging leaks)
         session_context = f"""
 [ACTIVE SESSION CONTEXT]
-- User ID: {user_id_resolved}
-- Hub ID: {hub_id or 'none'}
-- Organization ID: {org_id or 'none'}
 - Interaction Mode: {mode}
 """
         
@@ -194,10 +204,177 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
             
         root_agent.instruction = f"{session_context}{roster_str}\n{base_instruction}"
         
+        # --- OPENTELEMETRY CONTEXT ENRICHMENT ---
+        
+        # --- TELEMETRY CONTEXT VARIABLES SETTING ---
+        telemetry_org_id.set(org_id or "unknown")
+        telemetry_hub_id.set(hub_id or "unknown")
+        telemetry_user_id.set(user_id_resolved or "unknown")
+
+        try:
+            from opentelemetry import trace
+            current_span = trace.get_current_span()
+            if current_span:
+                current_span.set_attribute("org_id", org_id or "unknown")
+                current_span.set_attribute("hub_id", hub_id or "unknown")
+                current_span.set_attribute("user_id", user_id_resolved or "unknown")
+                current_span.set_attribute("gen_ai.conversation_id", session_id_resolved)
+                
+                # Determine query type (direct vs nested A2A) using call depth
+                depth = metadata.get("depth", 0)
+                request_type = "a2a" if depth > 0 else "direct"
+                current_span.set_attribute("gen_ai.request.type", request_type)
+        except Exception as otel_err:
+            print(f"⚠️ Failed to set OpenTelemetry span attributes in executor: {otel_err}")
+
+        # --- DYNAMIC OTEL LOG PROCESSOR REGISTRATION ---
+        try:
+            from opentelemetry._logs import get_logger_provider
+            from opentelemetry.sdk._logs import LoggerProvider
+
+            provider = get_logger_provider()
+            if hasattr(provider, "_logger_provider"):
+                provider = provider._logger_provider
+
+            if isinstance(provider, LoggerProvider):
+                has_processor = any(
+                    p.__class__.__name__ == "BillingContextLogRecordProcessor"
+                    for p in getattr(provider, "_log_record_processors", [])
+                )
+                if not has_processor:
+                    from opentelemetry.sdk._logs import LogRecordProcessor
+
+                    class BillingContextLogRecordProcessor(LogRecordProcessor):
+                        def on_emit(self, log_record, context=None):
+                            try:
+                                # 1. Try tracing span attributes
+                                span = trace.get_current_span()
+                                if span and span.get_span_context().is_valid:
+                                    span_attribs = getattr(span, "attributes", None)
+                                    if span_attribs:
+                                        for key in ["org_id", "hub_id", "user_id", "gen_ai.request.model", "gen_ai_request_model", "provider", "latency_ms"]:
+                                            if key in span_attribs:
+                                                val = span_attribs[key]
+                                                log_record_inner = getattr(log_record, "log_record", None)
+                                                if log_record_inner:
+                                                    if not log_record_inner.attributes:
+                                                        log_record_inner.attributes = {}
+                                                    log_record_inner.attributes[key] = val
+                                                else:
+                                                    if not log_record.attributes:
+                                                        log_record.attributes = {}
+                                                    log_record.attributes[key] = val
+
+                                # 2. Fallback/overwrite with task-local ContextVars (extremely reliable)
+                                ctx_vars = {
+                                    "org_id": telemetry_org_id.get(),
+                                    "hub_id": telemetry_hub_id.get(),
+                                    "user_id": telemetry_user_id.get()
+                                }
+                                for key, val in ctx_vars.items():
+                                    if val is not None:
+                                        log_record_inner = getattr(log_record, "log_record", None)
+                                        if log_record_inner:
+                                            if not log_record_inner.attributes:
+                                                log_record_inner.attributes = {}
+                                            log_record_inner.attributes[key] = val
+                                        else:
+                                            if not log_record.attributes:
+                                                log_record.attributes = {}
+                                            log_record.attributes[key] = val
+                            except Exception:
+                                pass
+
+                        def force_flush(self, timeout_millis: int = 30000) -> bool:
+                            return True
+
+                        def shutdown(self) -> None:
+                            pass
+
+                    provider.add_log_record_processor(BillingContextLogRecordProcessor())
+                    import logging
+                    logging.info("BillingContextLogRecordProcessor dynamically registered successfully on LoggerProvider")
+        except Exception as otel_reg_err:
+            import logging
+            logging.warning("Failed to dynamically register BillingContextLogRecordProcessor: %s", otel_reg_err)
+
+        # Determine the user ID the runner will use internally (A2A fallback is A2A_USER_{context_id})
+        runner_user_id = f"A2A_USER_{session_id_resolved}"
+        if hasattr(context, "call_context") and context.call_context and hasattr(context.call_context, "user") and context.call_context.user and getattr(context.call_context.user, "user_name", None):
+            runner_user_id = context.call_context.user.user_name
+
         try:
             # Enter the context session to ensure all Firestore calls in tools are authenticated
             with hubscape_adk.context_session(remote_ctx):
+                # 1. Restore ADK session trajectory from Firestore if available
+                try:
+                    session_doc = remote_ctx.get(scope="user", collection_name="sessions", doc_id=session_id_resolved)
+                    if session_doc and "adk_session" in session_doc:
+                        adk_session_json = session_doc["adk_session"]
+                        from google.adk.sessions import Session
+                        session_obj = Session.model_validate_json(adk_session_json)
+                        
+                        runner = await self._resolve_runner()
+                        app_name = runner.app_name
+                        sid = session_obj.id
+                        
+                        # Ensure fields match current context
+                        session_obj.app_name = app_name
+                        session_obj.user_id = user_id_resolved
+                        
+                        if app_name not in runner.session_service.sessions:
+                            runner.session_service.sessions[app_name] = {}
+                        if runner_user_id not in runner.session_service.sessions[app_name]:
+                            runner.session_service.sessions[app_name][runner_user_id] = {}
+                        runner.session_service.sessions[app_name][runner_user_id][sid] = session_obj
+                except Exception as restore_err:
+                    import logging
+                    logging.warning("⚠️ Non-critical: Failed to restore session trajectory: %s", restore_err)
+
+                # Ensure active session object is created/fetched and linked to remote_ctx before tools run
+                try:
+                    runner = await self._resolve_runner()
+                    session_obj = await runner.session_service.get_session(
+                        app_name=runner.app_name,
+                        user_id=runner_user_id,
+                        session_id=session_id_resolved
+                    )
+                    if not session_obj:
+                        session_obj = await runner.session_service.create_session(
+                            app_name=runner.app_name,
+                            user_id=runner_user_id,
+                            session_id=session_id_resolved
+                        )
+                    session_obj.user_id = user_id_resolved
+                    remote_ctx.session = session_obj
+                except Exception as session_init_err:
+                    import logging
+                    logging.warning("⚠️ Non-critical: Failed to bind session to context: %s", session_init_err)
+
                 await super().execute(context, interceptor)
+
+                # 2. Persist updated ADK session state back to Firestore
+                try:
+                    runner = await self._resolve_runner()
+                    updated_session = await runner.session_service.get_session(
+                        app_name=runner.app_name,
+                        user_id=runner_user_id,
+                        session_id=session_id_resolved
+                    )
+                    if updated_session:
+                        updated_session.user_id = user_id_resolved
+                        serialized_json = updated_session.model_dump_json()
+                        remote_ctx.save(
+                            scope="user",
+                            collection_name="sessions",
+                            doc_id=session_id_resolved,
+                            data={
+                                "adk_session": serialized_json
+                            }
+                        )
+                except Exception as save_err:
+                    import logging
+                    logging.warning("⚠️ Non-critical: Failed to save session trajectory: %s", save_err)
         finally:
             root_agent.instruction = base_instruction
 
@@ -401,6 +578,45 @@ class AgentEngineApp(A2aAgent):
         vertexai.init()
         setup_telemetry()
         super().set_up()
+        
+        # Register billing context processor to propagate span attributes to log records
+        try:
+            from opentelemetry.sdk._logs import LogRecordProcessor
+            from opentelemetry import trace
+
+            class BillingContextLogRecordProcessor(LogRecordProcessor):
+                def emit(self, log_record, context=None):
+                    try:
+                        span = trace.get_current_span()
+                        if span and span.get_span_context().is_valid:
+                            span_attribs = getattr(span, "attributes", None)
+                            if span_attribs:
+                                for key in ["org_id", "hub_id", "user_id", "gen_ai.conversation_id", "gen_ai.request.model", "gen_ai_request_model", "provider", "latency_ms"]:
+                                    if key in span_attribs:
+                                        val = span_attribs[key]
+                                        log_record_inner = getattr(log_record, "log_record", None)
+                                        if log_record_inner:
+                                            if not log_record_inner.attributes:
+                                                log_record_inner.attributes = {}
+                                            log_record_inner.attributes[key] = val
+                                        else:
+                                            if not log_record.attributes:
+                                                log_record.attributes = {}
+                                            log_record.attributes[key] = val
+                    except Exception:
+                        pass
+
+            from opentelemetry._logs import get_logger_provider
+            from opentelemetry.sdk._logs import LoggerProvider
+            provider = get_logger_provider()
+            if isinstance(provider, LoggerProvider):
+                provider.add_log_record_processor(BillingContextLogRecordProcessor())
+                logging.info("BillingContextLogRecordProcessor registered successfully on LoggerProvider")
+            else:
+                logging.warning("LoggerProvider is not a LoggerProvider: %s", type(provider))
+        except Exception as otel_reg_err:
+            logging.warning("Failed to register BillingContextLogRecordProcessor: %s", otel_reg_err)
+
         logging.basicConfig(level=logging.INFO)
         logging_client = google_cloud_logging.Client()
         self.logger = logging_client.logger(__name__)

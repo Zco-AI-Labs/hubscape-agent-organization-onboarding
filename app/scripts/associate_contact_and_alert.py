@@ -41,6 +41,9 @@ async def associate_contact_and_alert(
         }
 
     ctx = get_context()
+    if (not org_id or org_id.strip() == "") and hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
+        org_id = ctx.session.state.get("active_org_id", "")
+
     # Find lead
     lead = ctx.get(scope="platform", collection_name="leads", doc_id=org_id)
     if not lead:
@@ -105,8 +108,7 @@ async def associate_contact_and_alert(
     summary_data = {
         "summary_name": lead.get("org_name"),
         "summary_description": lead.get("org_description"),
-        "summary_email": lead.get("org_email"),
-        "summary_phone": lead.get("org_phone")
+        "summary_website": lead.get("org_website")
     }
     try:
         ctx.show_widget("org_summary_card", data=summary_data)

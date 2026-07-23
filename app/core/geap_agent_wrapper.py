@@ -1,7 +1,9 @@
 import os
 import uuid
 import importlib.util
+import json
 import urllib.request
+import time
 from google.genai import types
 from google.adk.runners import Runner
 from app.core import hubscape_adk
@@ -13,55 +15,10 @@ class GEAPAgentWrapper:
         self.runner = None
 
     async def query(self, question: str, context: dict = None) -> str:
+        start_time = time.time()
         core_dir = os.path.dirname(os.path.abspath(__file__))
         runtime_dir = os.path.abspath(os.path.join(core_dir, ".."))
         
-        # --- DEBUG HOOK ---
-        if question == "debug_env":
-            files = []
-            for root, dirs, ffiles in os.walk(runtime_dir):
-                for f in ffiles:
-                    files.append(os.path.relpath(os.path.join(root, f), runtime_dir))
-            
-            scripts_dir = os.path.join(runtime_dir, "scripts")
-            loaded = []
-            if os.path.exists(scripts_dir):
-                for filename in os.listdir(scripts_dir):
-                    if filename.endswith(".py"):
-                        loaded.append(filename)
-            
-            import_errors = []
-            if os.path.exists(scripts_dir):
-                for filename in os.listdir(scripts_dir):
-                    if filename.endswith(".py") and not filename.startswith("_"):
-                        module_name = filename[:-3]
-                        file_path = os.path.join(scripts_dir, filename)
-                        try:
-                            spec = importlib.util.spec_from_file_location(module_name, file_path)
-                            if spec and spec.loader:
-                                module = importlib.util.module_from_spec(spec)
-                                spec.loader.exec_module(module)
-                                func = getattr(module, module_name, None)
-                                if func and callable(func):
-                                    pass
-                                else:
-                                    import_errors.append(f"{filename}: function {module_name} not found or not callable")
-                        except Exception as e:
-                            import_errors.append(f"{filename}: {str(e)}")
-            
-            sa_email = "Unknown"
-            try:
-                req = urllib.request.Request(
-                    "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email",
-                    headers={"Metadata-Flavor": "Google"}
-                )
-                with urllib.request.urlopen(req, timeout=2) as response:
-                    sa_email = response.read().decode("utf-8").strip()
-            except Exception as e:
-                sa_email = f"Error: {e}"
-            
-            return f"Active Service Account: {sa_email}\nRuntime Dir: {runtime_dir}\nFiles:\n" + "\n".join(files) + "\nScripts dir contents:\n" + "\n".join(loaded) + "\nImport Errors:\n" + "\n".join(import_errors)
-        # --- END DEBUG HOOK ---
 
         user_id = (context or {}).get("userId") or (context or {}).get("user_id") or "anonymous_user"
         org_id = (context or {}).get("orgId") or (context or {}).get("org_id")
@@ -80,40 +37,178 @@ class GEAPAgentWrapper:
             raw_context=context
         )
         
-        session_id = (context or {}).get("sessionId") or f"session_{user_id}_{hub_id}"
+        session_id = (context or {}).get("sessionId") or (context or {}).get("session_id") or f"session_{user_id}_{hub_id}"
+        
+        # --- OPENTELEMETRY CONTEXT ENRICHMENT ---
+        try:
+            from opentelemetry import trace
+            current_span = trace.get_current_span()
+            if current_span:
+                current_span.set_attribute("org_id", org_id or "unknown")
+                current_span.set_attribute("hub_id", hub_id or "unknown")
+                current_span.set_attribute("user_id", user_id or "unknown")
+                current_span.set_attribute("gen_ai.conversation_id", session_id)
+                current_span.set_attribute("gen_ai.request.model", self.agent.model.model_name)
+                current_span.set_attribute("provider", "vertex")
+                
+                depth = (context or {}).get("depth", 0)
+                request_type = "a2a" if depth > 0 else "direct"
+                current_span.set_attribute("gen_ai.request.type", request_type)
+        except Exception:
+            pass
+        
+        # --- OPENTELEMETRY CONTEXT ENRICHMENT (OPTION A) ---
+        try:
+            from opentelemetry import trace
+            current_span = trace.get_current_span()
+            if current_span:
+                current_span.set_attribute("org_id", org_id or "unknown")
+                current_span.set_attribute("hub_id", hub_id or "unknown")
+                current_span.set_attribute("user_id", user_id or "unknown")
+                current_span.set_attribute("gen_ai.conversation_id", session_id)
+                current_span.set_attribute("gen_ai.request.model", self.agent.model.model_name)
+                current_span.set_attribute("provider", "vertex")
+                
+                # Determine query type (direct vs nested A2A) using call depth
+                depth = (context or {}).get("depth", 0)
+                request_type = "a2a" if depth > 0 else "direct"
+                current_span.set_attribute("gen_ai.request.type", request_type)
+        except Exception as otel_err:
+            print(f"⚠️ Failed to set OpenTelemetry span attributes: {otel_err}")
+        # ----------------------------------------------------
         
         with hubscape_adk.context_session(remote_ctx):
-            if not self.runner:
-                from google.adk.sessions.in_memory_session_service import InMemorySessionService
-                from google.adk.artifacts.in_memory_artifact_service import InMemoryArtifactService
-                from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
-                from google.adk.auth.credential_service.in_memory_credential_service import InMemoryCredentialService
-                
-                self.runner = Runner(
-                    agent=self.agent,
-                    app_name=self.app_name,
-                    session_service=InMemorySessionService(),
-                    artifact_service=InMemoryArtifactService(),
-                    memory_service=InMemoryMemoryService(),
-                    credential_service=InMemoryCredentialService(),
-                    auto_create_session=True
-                )
+            from google.adk.sessions.in_memory_session_service import InMemorySessionService
+            from google.adk.artifacts.in_memory_artifact_service import InMemoryArtifactService
+            from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
+            from google.adk.auth.credential_service.in_memory_credential_service import InMemoryCredentialService
+            
+            session_service = InMemorySessionService()
+            artifact_service = InMemoryArtifactService()
+            memory_service = InMemoryMemoryService()
+            credential_service = InMemoryCredentialService()
+
+            # 1. Restore ADK session trajectory from Firestore if available
+            try:
+                session_doc = remote_ctx.get(scope="user", collection_name="sessions", doc_id=session_id)
+                if session_doc and "adk_session" in session_doc:
+                    adk_session_json = session_doc["adk_session"]
+                    from google.adk.sessions import Session
+                    session_obj = Session.model_validate_json(adk_session_json)
+                    
+                    app_name = session_obj.app_name
+                    user_id_field = session_obj.user_id
+                    sid = session_obj.id
+                    
+                    if app_name not in session_service.sessions:
+                        session_service.sessions[app_name] = {}
+                    if user_id_field not in session_service.sessions[app_name]:
+                        session_service.sessions[app_name][user_id_field] = {}
+                    session_service.sessions[app_name][user_id_field][sid] = session_obj
+            except Exception as restore_err:
+                print(f"⚠️ Non-critical: Failed to restore session trajectory: {restore_err}")
+            workspace_type = (context or {}).get("workspaceType")
+            workspace_id = (context or {}).get("workspaceId")
+            if not workspace_type or not workspace_id:
+                is_org_scope = (hub_id == org_id) or (not hub_id) or (hub_id == "platform")
+                workspace_type = "organization" if is_org_scope else "hub"
+                workspace_id = org_id if is_org_scope else hub_id
+
+            # Concurrency-safe dynamic tool filtering based on workspace scope
+            cloned_agent = hubscape_adk.filter_tools_for_scope(
+                agent=self.agent,
+                user_privileges=remote_ctx.user_privileges,
+                workspace_type=workspace_type,
+                workspace_id=workspace_id,
+                org_id=org_id
+            )
+            
+            # Inject Active Workspace Context into instruction block
+            raw_mode = (context or {}).get("interaction_mode") or (context or {}).get("mode") or "chat_pc"
+            normalized_mode = "chat_pc" if raw_mode == "chat_phone" else raw_mode
+            session_context = (
+                f"[ACTIVE WORKSPACE CONTEXT]\n"
+                f"- Interaction Mode: {normalized_mode}\n"
+                f"- Workspace Type: {workspace_type}\n"
+                f"- Workspace ID: {workspace_id or 'none'}\n"
+                f"- Organization ID: {org_id or 'none'}\n"
+            )
+            cloned_agent.instruction = f"{session_context}\n{self.agent.instruction or ''}"
+            
+            # Create a fresh runner for this request to guarantee thread safety
+            runner = Runner(
+                agent=cloned_agent,
+                app_name=self.app_name,
+                session_service=session_service,
+                artifact_service=artifact_service,
+                memory_service=memory_service,
+                credential_service=credential_service,
+                auto_create_session=True
+            )
             
             new_message = types.Content(
                 parts=[types.Part.from_text(text=question)]
             )
             
-            text_response = ""
-            async for event in self.runner.run_async(
+            # Ensure active session object is created and linked to remote_ctx on Turn 1:
+            session_obj = await runner.session_service.get_session(
+                app_name=self.app_name,
+                user_id=user_id,
+                session_id=session_id
+            )
+            if not session_obj:
+                session_obj = await runner.session_service.create_session(
+                    app_name=self.app_name,
+                    user_id=user_id,
+                    session_id=session_id
+                )
+            remote_ctx.session = session_obj  # Now ctx.session exists on ALL turns!
+
+            collected_outputs = []
+            async for event in runner.run_async(
                 user_id=user_id,
                 session_id=session_id,
                 new_message=new_message
             ):
-                if event.output:
-                    text_response += event.output
-                elif event.content and event.content.parts:
-                    for part in event.content.parts:
-                        if part.text:
-                            text_response += part.text
+                out = getattr(event, "output", None)
+                if not out and getattr(event, "content", None) and getattr(event.content, "parts", None):
+                    text_parts = [p.text for p in event.content.parts if getattr(p, "text", None)]
+                    if text_parts:
+                        out = "\n".join(text_parts)
+                if out and isinstance(out, str) and out.strip():
+                    clean_out = out.strip()
+                    if not collected_outputs or clean_out != collected_outputs[-1].strip():
+                        collected_outputs.append(clean_out)
+            text_response = "\n".join(collected_outputs)
             
+            # 2. Persist updated ADK session state back to Firestore
+            try:
+                updated_session = await runner.session_service.get_session(
+                    app_name=self.app_name,
+                    user_id=user_id,
+                    session_id=session_id
+                )
+                if updated_session:
+                    serialized_json = updated_session.model_dump_json()
+                    remote_ctx.save(
+                        scope="user",
+                        collection_name="sessions",
+                        doc_id=session_id,
+                        data={
+                            "adk_session": serialized_json
+                        }
+                    )
+            except Exception as save_err:
+                print(f"⚠️ Non-critical: Failed to save session trajectory: {save_err}")
+
+            # Record final execution latency on active span
+            try:
+                from opentelemetry import trace
+                current_span = trace.get_current_span()
+                if current_span:
+                    latency_ms = (time.time() - start_time) * 1000.0
+                    current_span.set_attribute("latency_ms", float(latency_ms))
+            except Exception as otel_err:
+                pass
+                
             return text_response

@@ -33,8 +33,17 @@ from app.app_utils.vertex_gemini import get_model
 
 root_agent = AdkAgent(
     model=get_model("gemini-2.5-flash"),
-    name="organization_subscription_agent",
-    description="Global Organization Subscription Agent.",
+    name="sales_onboarding_agent",
+    description="""
+    Use this agent for all organization/company/business subscription onboarding, subscription status inquiries, and customer support contact requests.
+
+    Key Capabilities & Triggers:
+    1. Subscribe/Onboard Organization: Handles requests to subscribe a business, company, or organization to Hubscape services via interactive intake forms.
+    2. Check Subscription Status: Checks real-time subscription processing status for linked user organizations (requires mobile identity verification).
+    3. Contact Support: Displays customer support intake forms for users needing help or wishing to contact a representative.
+
+    Route to this agent when the user mentions subscribing a company, checking business subscription status, or contacting support.
+    """,
     instruction=system_instruction,
     tools=tools
 )
@@ -47,5 +56,5 @@ agent_app = GEAPAgentWrapper(root_agent)
 from google.adk.apps import App
 app = App(
     root_agent=root_agent,
-    name="organization-onboarding-agent",
+    name="sales-onboarding-agent",
 )

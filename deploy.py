@@ -98,6 +98,18 @@ def sync_agent_name(new_name):
 display_name = get_new_agent_name()
 sync_agent_name(display_name)
 
+# Run 'uv lock' to properly regenerate and synchronize uv.lock
+uv_path = shutil.which("uv")
+if uv_path:
+    print("Running 'uv lock' to synchronize and validate uv.lock...")
+    try:
+        subprocess.run([uv_path, "lock"], check=True)
+        print("  uv.lock successfully updated and synchronized.")
+    except Exception as e:
+        print(f"Warning: 'uv lock' failed: {e}")
+else:
+    print("Warning: 'uv' command not found. Please ensure uv is installed and run 'uv lock' to validate dependency locks.")
+
 print(f"Deploying {display_name} via native agents-cli...")
 
 agents_cli_path = shutil.which("agents-cli")

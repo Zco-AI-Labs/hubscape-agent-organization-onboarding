@@ -1,25 +1,100 @@
 {
-  "type": "card",
+  "type": "container",
   "props": {
-    "className": "p-4 bg-green-50 rounded-lg border border-green-200"
+    "className": "flex flex-col gap-4 p-5 bg-emerald-50 dark:bg-emerald-950 rounded-xl border border-emerald-200 dark:border-emerald-800 shadow-sm"
   },
   "children": [
     {
-      "type": "title",
+      "type": "text",
       "props": {
-        "text": "Organization Summary Card"
+        "text": "Organization Summary Card",
+        "size": "lg",
+        "weight": "bold",
+        "className": "text-emerald-900 dark:text-emerald-100"
       }
     },
     {
-      "type": "metadata-grid",
+      "type": "container",
       "props": {
-        "items": [
-          {"label": "Legal Name", "id": "summary_name"},
-          {"label": "Description", "id": "summary_description"},
-          {"label": "Org Email", "id": "summary_email"},
-          {"label": "Org Phone", "id": "summary_phone"}
-        ]
-      }
+        "className": "grid grid-cols-2 gap-3 bg-white dark:bg-slate-900 p-4 rounded-lg border border-emerald-100 dark:border-slate-800"
+      },
+      "children": [
+        {
+          "type": "container",
+          "props": {
+            "className": "flex flex-col"
+          },
+          "children": [
+            {
+              "type": "text",
+              "props": {
+                "text": "Legal Name",
+                "size": "xs",
+                "className": "text-slate-400 dark:text-slate-500 font-medium"
+              }
+            },
+            {
+              "type": "text",
+              "props": {
+                "text": "{{summary_name}}",
+                "size": "sm",
+                "weight": "medium",
+                "className": "text-slate-800 dark:text-slate-200"
+              }
+            }
+          ]
+        },
+        {
+          "type": "container",
+          "props": {
+            "className": "flex flex-col"
+          },
+          "children": [
+            {
+              "type": "text",
+              "props": {
+                "text": "Description",
+                "size": "xs",
+                "className": "text-slate-400 dark:text-slate-500 font-medium"
+              }
+            },
+            {
+              "type": "text",
+              "props": {
+                "text": "{{summary_description}}",
+                "size": "sm",
+                "weight": "medium",
+                "className": "text-slate-800 dark:text-slate-200"
+              }
+            }
+          ]
+        },
+        {
+          "type": "container",
+          "props": {
+            "className": "flex flex-col col-span-2"
+          },
+          "children": [
+            {
+              "type": "text",
+              "props": {
+                "text": "Website",
+                "size": "xs",
+                "className": "text-slate-400 dark:text-slate-500 font-medium"
+              }
+            },
+            {
+              "type": "text",
+              "props": {
+                "text": "{{summary_website}}",
+                "size": "sm",
+                "weight": "medium",
+                "className": "text-slate-850 dark:text-slate-200"
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }

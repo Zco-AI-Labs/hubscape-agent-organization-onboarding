@@ -37,6 +37,12 @@ Every widget template consists of a root layout component (usually a `container`
 
 ## 🧱 Core Component Catalog & Props
 
+> [!IMPORTANT]
+> **Official Component Reference:** For the complete specification and details on Lego UI elements, refer directly to the [Lego Widgets & IFrames Guide](file:///Users/rajvekeria/Documents/GitHub/hubscape-agent-template/docs/Hubscape-Agent-Template-Guide/CHAPTER_6_LEGO_WIDGETS_AND_IFRAMES.md).
+>
+> The standard registry of supported elements is:
+> `container`, `text`, `icon`, `image`, `spacer`, `button`, `input`, `select`, `iframe`, `calendar-grid`, `table`, `list`, `progress`, `youtube`, `media-player`, `file-handler`, `human-approval-gate`, `flow-chart`, `toggle`, `choice-picker`, `slider`, `tabs`, `accordion`.
+
 Below are the most common component types and their configurations:
 
 ### 1. Container (`container`)

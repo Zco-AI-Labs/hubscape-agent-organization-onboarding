@@ -33,20 +33,23 @@ Every agent is structured as a Python package inside the `app/` directory:
 
 
 
-## 🔑 Context Object Reference (`HubscapeContext` / `ToolContext`)
+## 🔑 Context Object Reference (`HubscapeContext` / `RemoteContext`)
 
-When writing tools in `tools.py`, you can receive the platform context directly:
+When writing tools inside `app/scripts/`, do NOT pass a context argument in the function signature. Instead, retrieve the active context dynamically:
 
 ### Standard Tool Signature
 ```python
-async def my_tool(tool_context: ToolContext, arg1: str) -> dict:
+import hubscape_adk
+
+async def my_tool(arg1: str) -> dict:
     """
     Description of what my_tool does.
     
     Args:
         arg1: Description of parameter.
     """
-    user_id = tool_context.auth.get_user_id()
+    context = hubscape_adk.get_context()
+    user_id = context.auth.get_user_id()
     # Execute logic...
 ```
 
@@ -55,7 +58,6 @@ async def my_tool(tool_context: ToolContext, arg1: str) -> dict:
 | Property / Method | Description |
 |---|---|
 | `context.auth.get_user_id()` | The user's platform UUID. |
-| `context.auth.name` | User's display name. |
 | `context.auth.org_id` | The Organization UUID. Never derive this from a DB lookup. |
 | `context.auth.hub_id` | The Hub UUID (may be `None` if org-level). |
 | `context.auth.has_permission(capability_id)` | Returns `True` if authorized (Hub Admins always bypass). |
@@ -65,10 +67,10 @@ async def my_tool(tool_context: ToolContext, arg1: str) -> dict:
 
 ### Database Helpers
 Always prefer using the high-level Firestore scope CRUD helpers:
-* `context.save_agent_data(scope: str, collection_name: str, doc_id: str, data: dict) -> dict`: Automatically injects auditing metadata and merges data.
-* `context.get_agent_data(scope: str, collection_name: str, doc_id: str) -> Optional[dict]`
-* `context.delete_agent_data(scope: str, collection_name: str, doc_id: str)`
-* `context.list_agent_data(scope: str, collection_name: str) -> list[dict]`
+* `context.save(scope: str, collection_name: str, doc_id: str, data: dict) -> dict`: Automatically injects auditing metadata and merges data.
+* `context.get(scope: str, collection_name: str, doc_id: str) -> Optional[dict]`
+* `context.delete(scope: str, collection_name: str, doc_id: str)`
+* `context.list(scope: str, collection_name: str) -> list[dict]`
 
 
 
@@ -82,30 +84,30 @@ Always prefer using the high-level Firestore scope CRUD helpers:
 
 ## 🔌 Model Context Protocol (MCP) & Agent-to-Agent (A2A) Connections
 * **Programmatic MCP Calls:** Invoke using the context client:
-  ```python
-  await context.mcp.call_tool(
-      agent_id=context.auth.agent_id,
-      server_name="server_key",
-      tool_name="tool_name",
-      arguments=arguments,
-      config=mcp_config,
-      context=context
-  )
-  ```
+    ```python
+    await context.mcp.call_tool(
+        agent_id=context.auth.agent_id,
+        server_name="server_key",
+        tool_name="tool_name",
+        arguments=arguments,
+        config=mcp_config,
+        context=context
+    )
+    ```
 * **Programmatic A2A Calls:** Invoke using `context.agents`:
-  ```python
-  result = await context.agents.call_external_tool(
-      ext_agent_key="salesforce_copilot",
-      tool_name="get_lead_details",
-      arguments=arguments
-  )
-  ```
+    ```python
+    result = await context.agents.call_external_tool(
+        ext_agent_key="salesforce_copilot",
+        tool_name="get_lead_details",
+        arguments=arguments
+    )
+    ```
 
 ---
 
 ## ✅ Development Workflow
 
-1. **Scaffold**: Initialize a new agent directory: `hubscape-adk init <agent_id>`. This scaffolds the package structure, including `agent.py`, `prompt.py`, `tools.py`, and `pyproject.toml`.
-2. **Implement**: Define tool functions in `tools.py` and import/register them in `agent.py`. Add system instructions to `prompt.py`.
-3. **API Routing**: If endpoints are required, define FastAPI routes in `api.py`.
-4. **Test**: Use the Holodeck console at `http://localhost:8090` to test tools, conversational routing, and permissions.
+1. **Scaffold**: Initialize your agent repository using the standard template folder containing `agent.py`, `SKILL.md`, `pyproject.toml`, and `app/scripts/`.
+2. **Implement**: Define tool functions as standalone Python scripts inside `app/scripts/` (filenames matching functions). Docstrings and type hints build Gemini schemas automatically. Add system instructions directly to `app/SKILL.md`.
+3. **No Inbound Routes**: Do NOT use `api.py` or write custom HTTP routes. All webhook callbacks must target the central backend, which writes to Firestore for the agent to query via `hubscape_adk.py`.
+4. **Test**: Run `agents-cli playground` to interactively run and test your tools, memory states, and database operations.
