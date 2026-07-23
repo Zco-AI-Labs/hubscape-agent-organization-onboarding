@@ -54,11 +54,11 @@ async def save_org_details(
     if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
         ctx.session.state["active_org_id"] = org_id
 
-    # Queue rendering the personal details widget
+    # Queue rendering the mobile input widget for phone identity verification
     try:
-        ctx.show_widget("personal_details_widget")
+        ctx.show_widget("mobile_input_widget")
     except Exception as e:
-        print(f"⚠️ [WIDGET QUEUE WARNING] Failed to queue personal details widget: {e}")
+        print(f"⚠️ [WIDGET QUEUE WARNING] Failed to queue mobile input widget: {e}")
 
     return {
         "status": "success",
