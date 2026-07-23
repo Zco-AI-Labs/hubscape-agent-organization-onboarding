@@ -165,141 +165,8 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
         
         session_id_resolved = metadata.get("sessionId") or metadata.get("session_id") or f"session_{user_id_resolved}_{hub_id}"
         
-        # Align A2A context ID with the resolved session ID to unify session management
-        context._context_id = session_id_resolved
-        if hasattr(context, "_params") and context._params and hasattr(context._params, "message") and context._params.message:
-            context._params.message.context_id = session_id_resolved
-            
-        agent_name = root_agent.name.replace('_', '-') if root_agent and hasattr(root_agent, "name") else "custom-agent"
-        agent_uuid = str(uuid.uuid5(uuid.NAMESPACE_URL, f"https://github.com/Zco-AI-Labs/{agent_name}"))
-        from app.app_utils.env_resolver import get_project_id
-        project_id = get_project_id()
-        
-        remote_ctx = hubscape_adk.RemoteContext(
-            user_id=user_id_resolved,
-            agent_id=agent_uuid,
-            org_id=org_id,
-            hub_id=hub_id,
-            project_id=project_id,
-            raw_context=metadata
-        )
-        
-        interceptor = ActionInterceptingEventQueue(event_queue, remote_ctx)
-        
-        base_instruction = root_agent.instruction or ""
-        
-        # Inject Active Session Context securely at the top of the prompt (excluding sensitive database UUIDs to prevent logging leaks)
-        session_context = f"""
-[ACTIVE SESSION CONTEXT]
-- Interaction Mode: {mode}
-"""
-        
-        # Format and append accessible agents roster
-        accessible_agents = metadata.get("accessible_agents", [])
-        roster_str = ""
-        if accessible_agents:
-            roster_str = "\n=== AVAILABLE SUBAGENTS ROSTER ===\n" + "\n".join(
-                f"- {a.get('name')} (ID: {a.get('id')}): {a.get('description')}" for a in accessible_agents
-            ) + "\n"
-            
-        root_agent.instruction = f"{session_context}{roster_str}\n{base_instruction}"
-        
-        # --- OPENTELEMETRY CONTEXT ENRICHMENT ---
-        
-        # --- TELEMETRY CONTEXT VARIABLES SETTING ---
-        telemetry_org_id.set(org_id or "unknown")
-        telemetry_hub_id.set(hub_id or "unknown")
-        telemetry_user_id.set(user_id_resolved or "unknown")
-
-        try:
-            from opentelemetry import trace
-            current_span = trace.get_current_span()
-            if current_span:
-                current_span.set_attribute("org_id", org_id or "unknown")
-                current_span.set_attribute("hub_id", hub_id or "unknown")
-                current_span.set_attribute("user_id", user_id_resolved or "unknown")
-                current_span.set_attribute("gen_ai.conversation_id", session_id_resolved)
-                
-                # Determine query type (direct vs nested A2A) using call depth
-                depth = metadata.get("depth", 0)
-                request_type = "a2a" if depth > 0 else "direct"
-                current_span.set_attribute("gen_ai.request.type", request_type)
-        except Exception as otel_err:
-            print(f"⚠️ Failed to set OpenTelemetry span attributes in executor: {otel_err}")
-
-        # --- DYNAMIC OTEL LOG PROCESSOR REGISTRATION ---
-        try:
-            from opentelemetry._logs import get_logger_provider
-            from opentelemetry.sdk._logs import LoggerProvider
-
-            provider = get_logger_provider()
-            if hasattr(provider, "_logger_provider"):
-                provider = provider._logger_provider
-
-            if isinstance(provider, LoggerProvider):
-                has_processor = any(
-                    p.__class__.__name__ == "BillingContextLogRecordProcessor"
-                    for p in getattr(provider, "_log_record_processors", [])
-                )
-                if not has_processor:
-                    from opentelemetry.sdk._logs import LogRecordProcessor
-
-                    class BillingContextLogRecordProcessor(LogRecordProcessor):
-                        def on_emit(self, log_record, context=None):
-                            try:
-                                # 1. Try tracing span attributes
-                                span = trace.get_current_span()
-                                if span and span.get_span_context().is_valid:
-                                    span_attribs = getattr(span, "attributes", None)
-                                    if span_attribs:
-                                        for key in ["org_id", "hub_id", "user_id", "gen_ai.request.model", "gen_ai_request_model", "provider", "latency_ms"]:
-                                            if key in span_attribs:
-                                                val = span_attribs[key]
-                                                log_record_inner = getattr(log_record, "log_record", None)
-                                                if log_record_inner:
-                                                    if not log_record_inner.attributes:
-                                                        log_record_inner.attributes = {}
-                                                    log_record_inner.attributes[key] = val
-                                                else:
-                                                    if not log_record.attributes:
-                                                        log_record.attributes = {}
-                                                    log_record.attributes[key] = val
-
-                                # 2. Fallback/overwrite with task-local ContextVars (extremely reliable)
-                                ctx_vars = {
-                                    "org_id": telemetry_org_id.get(),
-                                    "hub_id": telemetry_hub_id.get(),
-                                    "user_id": telemetry_user_id.get()
-                                }
-                                for key, val in ctx_vars.items():
-                                    if val is not None:
-                                        log_record_inner = getattr(log_record, "log_record", None)
-                                        if log_record_inner:
-                                            if not log_record_inner.attributes:
-                                                log_record_inner.attributes = {}
-                                            log_record_inner.attributes[key] = val
-                                        else:
-                                            if not log_record.attributes:
-                                                log_record.attributes = {}
-                                            log_record.attributes[key] = val
-                            except Exception:
-                                pass
-
-                        def force_flush(self, timeout_millis: int = 30000) -> bool:
-                            return True
-
-                        def shutdown(self) -> None:
-                            pass
-
-                    provider.add_log_record_processor(BillingContextLogRecordProcessor())
-                    import logging
-                    logging.info("BillingContextLogRecordProcessor dynamically registered successfully on LoggerProvider")
-        except Exception as otel_reg_err:
-            import logging
-            logging.warning("Failed to dynamically register BillingContextLogRecordProcessor: %s", otel_reg_err)
-
         # Determine the user ID the runner will use internally (A2A fallback is A2A_USER_{context_id})
-        runner_user_id = f"A2A_USER_{session_id_resolved}"
+        runner_user_id = f"A2A_USER_{context.context_id}"
         if hasattr(context, "call_context") and context.call_context and hasattr(context.call_context, "user") and context.call_context.user and getattr(context.call_context.user, "user_name", None):
             runner_user_id = context.call_context.user.user_name
 
@@ -327,6 +194,7 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
                         if runner_user_id not in runner.session_service.sessions[app_name]:
                             runner.session_service.sessions[app_name][runner_user_id] = {}
                         runner.session_service.sessions[app_name][runner_user_id][sid] = session_obj
+                        runner.session_service.sessions[app_name][runner_user_id][context.context_id] = session_obj
                 except Exception as restore_err:
                     import logging
                     logging.warning("⚠️ Non-critical: Failed to restore session trajectory: %s", restore_err)
@@ -337,8 +205,14 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
                     session_obj = await runner.session_service.get_session(
                         app_name=runner.app_name,
                         user_id=runner_user_id,
-                        session_id=session_id_resolved
+                        session_id=context.context_id
                     )
+                    if not session_obj:
+                        session_obj = await runner.session_service.get_session(
+                            app_name=runner.app_name,
+                            user_id=runner_user_id,
+                            session_id=session_id_resolved
+                        )
                     if not session_obj:
                         session_obj = await runner.session_service.create_session(
                             app_name=runner.app_name,
@@ -361,7 +235,14 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
                         user_id=runner_user_id,
                         session_id=session_id_resolved
                     )
+                    if not updated_session:
+                        updated_session = await runner.session_service.get_session(
+                            app_name=runner.app_name,
+                            user_id=runner_user_id,
+                            session_id=context.context_id
+                        )
                     if updated_session:
+                        updated_session.id = session_id_resolved
                         updated_session.user_id = user_id_resolved
                         serialized_json = updated_session.model_dump_json()
                         remote_ctx.save(
