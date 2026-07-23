@@ -498,12 +498,8 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
                     )
                 )
                 await event_queue.enqueue_event(new_artifact_event)
-            else:
-                for ev in interceptor.events:
-                    await event_queue.enqueue_event(ev)
-                if interceptor.artifact_event:
-                    await event_queue.enqueue_event(interceptor.artifact_event)
-        else:
+            # Always enqueue the standard A2A message events so model responses and tool outputs
+            # get recorded/propagated correctly.
             for ev in interceptor.events:
                 await event_queue.enqueue_event(ev)
             if interceptor.artifact_event:
