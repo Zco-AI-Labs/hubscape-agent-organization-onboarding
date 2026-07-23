@@ -113,7 +113,7 @@ async def test_save_org_details() -> None:
             user_position="CEO"
         )
         assert res["status"] == "success"
-        assert "org_id" in res
+        assert "lead_id" in res
         
         # Verify saved via context
         leads = ctx.list(scope="platform", collection_name="leads")
@@ -178,11 +178,11 @@ async def test_associate_contact_and_alert() -> None:
     with context_session(ctx):
         # Save lead first
         save_res = await save_org_details("Apex", "Robotics", "apex.com", "CEO")
-        org_id = save_res["org_id"]
+        lead_id = save_res["lead_id"]
         
         # Associate
         assoc_res = await associate_contact_and_alert(
-            org_id=org_id,
+            lead_id=lead_id,
             contact_email="alex@apex.com",
             contact_mobile="555-0199",
             full_name="Alex Doe"
@@ -190,7 +190,7 @@ async def test_associate_contact_and_alert() -> None:
         assert assoc_res["status"] == "success"
         
         # Check DB updates
-        lead = ctx.get(scope="platform", collection_name="leads", doc_id=org_id)
+        lead = ctx.get(scope="platform", collection_name="leads", doc_id=lead_id)
         assert lead["status"] == "ASSOCIATED"
         assert lead["contact_email"] == "alex@apex.com"
         
@@ -198,7 +198,9 @@ async def test_associate_contact_and_alert() -> None:
         assert len(alerts) == 1
         
         # Verify show_widget was called
-        ctx.show_widget.assert_called_once_with(
+        assert ctx.show_widget.call_count == 2
+        ctx.show_widget.assert_any_call("personal_details_widget")
+        ctx.show_widget.assert_any_call(
             "org_summary_card",
             data={
                 "summary_name": "Apex",
@@ -249,7 +251,7 @@ async def test_save_org_details_empty_website() -> None:
             user_position="CEO"
         )
         assert res["status"] == "success"
-        assert "org_id" in res
+        assert "lead_id" in res
         
         leads = ctx.list(scope="platform", collection_name="leads")
         assert len(leads) == 1
@@ -266,11 +268,11 @@ async def test_associate_contact_invalid_email() -> None:
             org_website="apex.com",
             user_position="CEO"
         )
-        org_id = org_res["org_id"]
+        lead_id = org_res["lead_id"]
         
         # Call with invalid contact email
         res = await associate_contact_and_alert(
-            org_id=org_id,
+            lead_id=lead_id,
             contact_email="invalid_contact_email",
             contact_mobile="555-0199",
             full_name="Alex Doe"
@@ -289,11 +291,11 @@ async def test_associate_contact_invalid_phone() -> None:
             org_website="apex.com",
             user_position="CEO"
         )
-        org_id = org_res["org_id"]
+        lead_id = org_res["lead_id"]
         
         # Call with invalid contact phone
         res = await associate_contact_and_alert(
-            org_id=org_id,
+            lead_id=lead_id,
             contact_email="alex@apex.com",
             contact_mobile="12345",
             full_name="Alex Doe"

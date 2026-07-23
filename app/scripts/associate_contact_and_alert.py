@@ -6,9 +6,9 @@ from app.core.hubscape_adk import get_context, require_tool_privilege
 
 @require_tool_privilege
 async def associate_contact_and_alert(
-    org_id: str,
-    contact_email: str,
-    contact_mobile: str,
+    lead_id: str = None,
+    contact_email: str = "",
+    contact_mobile: str = None,
     full_name: str = ""
 ) -> dict:
     """
@@ -16,11 +16,45 @@ async def associate_contact_and_alert(
     registers the user if new, triggers a Sales Rep alert, and displays the summary card.
 
     Args:
-        org_id: The ID of the saved organization lead record.
+        lead_id: The ID of the saved organization lead record.
         contact_email: Contact email address collected/retrieved.
         contact_mobile: Personal mobile number collected/retrieved.
         full_name: Full name of the contact (optional).
     """
+    ctx = get_context()
+    
+    resolved_lead_id = lead_id
+    resolved_mobile = contact_mobile
+    
+    session_id = ctx.raw_context.get("sessionId") or ctx.raw_context.get("session_id")
+    if session_id and (not resolved_lead_id or not resolved_mobile):
+        try:
+            session_doc = ctx.get(scope="user", collection_name="sessions", doc_id=session_id)
+            if session_doc:
+                if not resolved_lead_id:
+                    resolved_lead_id = session_doc.get("lead_id")
+                if not resolved_mobile:
+                    resolved_mobile = session_doc.get("verified_mobile")
+        except Exception as e:
+            print(f"⚠️ [SESSION GET WARNING] Failed to retrieve session document: {e}")
+
+    if not resolved_lead_id:
+        return {
+            "status": "error",
+            "message": "Missing lead_id. Please provide organization details first."
+        }
+        
+    if not resolved_mobile:
+        # Fallback: check if the user is authenticated in the current session
+        user_id = ctx.auth.get_user_id()
+        if user_id and not user_id.startswith("guest") and not user_id.startswith("anonymous") and user_id not in ("dummy_user", "default_user", "dev-user-123"):
+            resolved_mobile = user_id
+        else:
+            return {
+                "status": "error",
+                "message": "Missing verified mobile number. Please complete identity verification."
+            }
+
     import re
     email_pattern = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
     if not re.match(email_pattern, contact_email.strip()):
@@ -29,10 +63,10 @@ async def associate_contact_and_alert(
             "message": "Invalid contact email format. Please provide a valid email address (e.g. name@domain.com)."
         }
         
-    clean_phone = "".join(filter(str.isdigit, contact_mobile))
+    clean_phone = "".join(filter(str.isdigit, resolved_mobile))
     has_country = True
     if len(clean_phone) >= 10:
-        has_country = contact_mobile.strip().startswith('+')
+        has_country = resolved_mobile.strip().startswith('+')
         
     if not (len(clean_phone) >= 10 or len(clean_phone) in (7, 8)) or not has_country:
         return {
@@ -40,11 +74,10 @@ async def associate_contact_and_alert(
             "message": "Invalid contact mobile format. Please include your country code starting with '+' (e.g. +919876543210 or +15550199000)."
         }
 
-    ctx = get_context()
     # Find lead
-    lead = ctx.get(scope="platform", collection_name="leads", doc_id=org_id)
+    lead = ctx.get(scope="platform", collection_name="leads", doc_id=resolved_lead_id)
     if not lead:
-        return {"status": "error", "message": f"Lead record {org_id} not found."}
+        return {"status": "error", "message": f"Lead record {resolved_lead_id} not found."}
         
     def normalize_phone(num: str) -> str:
         """
@@ -55,7 +88,7 @@ async def associate_contact_and_alert(
             clean = clean[1:]
         return clean
 
-    clean_mobile = normalize_phone(contact_mobile)
+    clean_mobile = normalize_phone(resolved_mobile)
 
     # Update lead details
     lead["contact_email"] = contact_email
@@ -63,7 +96,7 @@ async def associate_contact_and_alert(
     lead["contact_name"] = full_name or lead.get("contact_name") or "New User"
     lead["status"] = "ASSOCIATED"
     
-    ctx.save(scope="platform", collection_name="leads", doc_id=org_id, data=lead)
+    ctx.save(scope="platform", collection_name="leads", doc_id=resolved_lead_id, data=lead)
     
     # Check if user exists in registered_users
     user_exists = ctx.get(scope="platform", collection_name="registered_users", doc_id=clean_mobile)
@@ -95,7 +128,7 @@ async def associate_contact_and_alert(
         collection_name="sales_alerts",
         doc_id=alert_id,
         data={
-            "lead_id": org_id,
+            "lead_id": resolved_lead_id,
             "message": alert_msg,
             "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
         }
@@ -115,6 +148,6 @@ async def associate_contact_and_alert(
     return {
         "status": "success",
         "message": "Contact details successfully associated. Sales alert dispatched.",
-        "org_id": org_id,
+        "lead_id": resolved_lead_id,
         "alert_id": alert_id
     }

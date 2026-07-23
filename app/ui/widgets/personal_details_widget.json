@@ -26,7 +26,7 @@
       "type": "button",
       "props": {
         "label": "Submit Contact Details",
-        "actionUrl": "agent://submit_personal",
+        "actionUrl": "agent://associate_contact_and_alert",
         "styling": {
           "colorTheme": "pink"
         }

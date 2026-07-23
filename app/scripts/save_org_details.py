@@ -29,10 +29,10 @@ async def save_org_details(
             }
 
     ctx = get_context()
-    org_id = f"lead_{int(time.time())}"
+    lead_id = f"lead_{int(time.time())}"
     
     lead_data = {
-        "id": org_id,
+        "id": lead_id,
         "org_name": org_name,
         "org_description": org_description,
         "org_website": website_clean,
@@ -46,23 +46,33 @@ async def save_org_details(
     ctx.save(
         scope="platform",
         collection_name="leads",
-        doc_id=org_id,
+        doc_id=lead_id,
         data=lead_data
     )
 
-    # Queue rendering the summary card widget
-    summary_data = {
-        "summary_name": org_name,
-        "summary_description": org_description,
-        "summary_website": website_clean
-    }
+    # Save lead_id in the database inside the session state variable
+    session_id = ctx.raw_context.get("sessionId") or ctx.raw_context.get("session_id")
+    if session_id:
+        try:
+            ctx.save(
+                scope="user",
+                collection_name="sessions",
+                doc_id=session_id,
+                data={
+                    "lead_id": lead_id
+                }
+            )
+        except Exception as e:
+            print(f"⚠️ [SESSION SAVE WARNING] Failed to save lead_id to session document: {e}")
+
+    # Queue rendering the personal details widget to collect contacts
     try:
-        ctx.show_widget("org_summary_card", data=summary_data)
+        ctx.show_widget("personal_details_widget")
     except Exception as e:
-        print(f"⚠️ [WIDGET QUEUE WARNING] Failed to queue summary widget: {e}")
+        print(f"⚠️ [WIDGET QUEUE WARNING] Failed to queue personal details widget: {e}")
 
     return {
         "status": "success",
-        "org_id": org_id,
+        "lead_id": lead_id,
         "message": f"Organization '{org_name}' details successfully saved."
     }

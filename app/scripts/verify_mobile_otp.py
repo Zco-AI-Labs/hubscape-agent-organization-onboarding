@@ -26,6 +26,21 @@ async def verify_mobile_otp(mobile_number: str, otp_code: str) -> dict:
     res = ctx.verify_otp(mobile_number, otp_code)
     
     if res.get("success"):
+        # Save verified_mobile in the database inside the session state variable
+        session_id = ctx.raw_context.get("sessionId") or ctx.raw_context.get("session_id")
+        if session_id:
+            try:
+                ctx.save(
+                    scope="user",
+                    collection_name="sessions",
+                    doc_id=session_id,
+                    data={
+                        "verified_mobile": mobile_number
+                    }
+                )
+            except Exception as e:
+                print(f"⚠️ [SESSION SAVE WARNING] Failed to save verified_mobile to session document: {e}")
+
         return {
             "valid": True,
             "message": "OTP verification successful."
