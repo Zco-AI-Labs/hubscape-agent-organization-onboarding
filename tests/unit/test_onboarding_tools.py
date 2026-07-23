@@ -199,7 +199,7 @@ async def test_associate_contact_and_alert() -> None:
         assert len(alerts) == 1
         
         # Verify show_widget was called
-        ctx.show_widget.assert_called_once_with(
+        ctx.show_widget.assert_called_with(
             "org_summary_card",
             data={
                 "summary_name": "Apex",

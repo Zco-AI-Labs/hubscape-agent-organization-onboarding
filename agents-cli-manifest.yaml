@@ -9,7 +9,7 @@ language: "python"
 create_params:
   deployment_target: "agent_runtime"
   is_a2a: true
-  session_type: "in_memory"
+  session_type: "vertex_ai_session_service"
   cicd_runner: "skip"
   include_data_ingestion: false
   datastore: "none"

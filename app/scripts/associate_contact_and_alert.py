@@ -41,6 +41,9 @@ async def associate_contact_and_alert(
         }
 
     ctx = get_context()
+    if (not org_id or org_id.strip() == "") and hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
+        org_id = ctx.session.state.get("active_org_id", "")
+
     # Find lead
     lead = ctx.get(scope="platform", collection_name="leads", doc_id=org_id)
     if not lead:
