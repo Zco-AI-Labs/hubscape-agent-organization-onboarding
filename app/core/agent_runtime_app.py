@@ -311,8 +311,8 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
                     query_text = "unknown"
                     if hasattr(context, "query") and context.query:
                         query_text = context.query
-                    elif hasattr(context, "message") and context.message and hasattr(context.message, "content") and context.message.content and hasattr(context.message.content, "parts") and context.message.content.parts:
-                        query_text = getattr(context.message.content.parts[0], "text", None) or "unknown"
+                    elif hasattr(context, "message") and context.message and hasattr(context.message, "parts") and context.message.parts:
+                        query_text = getattr(context.message.parts[0], "text", None) or "unknown"
                     remote_ctx.save(
                         scope="user",
                         collection_name="sessions",
@@ -338,6 +338,9 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
                         adk_session_json = session_doc["adk_session"]
                         from google.adk.sessions import Session
                         session_obj = Session.model_validate_json(adk_session_json)
+                        
+                        # Clear history events to keep the context clean for tool routing, keeping only state variables (like active_org_id)
+                        session_obj.events = []
                         
                         runner = await self._resolve_runner()
                         app_name = runner.app_name
