@@ -73,7 +73,7 @@ telemetry_org_id = ContextVar("telemetry_org_id", default=None)
 telemetry_hub_id = ContextVar("telemetry_hub_id", default=None)
 telemetry_user_id = ContextVar("telemetry_user_id", default=None)
 telemetry_conversation_id = ContextVar("telemetry_conversation_id", default=None)
-request_runner_ctx = ContextVar("request_runner_ctx", default=None)
+from app.core.hubscape_adk import request_runner_ctx
 
 from app.agent import app as adk_app
 from app.app_utils.telemetry import setup_telemetry

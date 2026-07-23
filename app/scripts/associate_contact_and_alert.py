@@ -28,15 +28,32 @@ async def associate_contact_and_alert(
     
     session_id = ctx.raw_context.get("sessionId") or ctx.raw_context.get("session_id")
     if session_id and (not resolved_lead_id or not resolved_mobile):
-        try:
-            session_doc = ctx.get(scope="user", collection_name="sessions", doc_id=session_id)
-            if session_doc:
-                if not resolved_lead_id:
-                    resolved_lead_id = session_doc.get("lead_id")
-                if not resolved_mobile:
-                    resolved_mobile = session_doc.get("verified_mobile")
-        except Exception as e:
-            print(f"⚠️ [SESSION GET WARNING] Failed to retrieve session document: {e}")
+        # 1. Attempt to read from in-memory ADK session state first
+        from app.core.hubscape_adk import request_runner_ctx
+        runner = request_runner_ctx.get()
+        if runner and runner.session_service:
+            try:
+                user_id = ctx.auth.get_user_id()
+                session_obj = runner.session_service.sessions.get(runner.app_name, {}).get(user_id, {}).get(session_id)
+                if session_obj and session_obj.state:
+                    if not resolved_lead_id:
+                        resolved_lead_id = session_obj.state.get("lead_id")
+                    if not resolved_mobile:
+                        resolved_mobile = session_obj.state.get("verified_mobile")
+            except Exception as e:
+                print(f"⚠️ [SESSION STATE MEMORY WARNING] Failed to read lead_id/verified_mobile: {e}")
+
+        # 2. Fall back to retrieving from session Firestore document
+        if not resolved_lead_id or not resolved_mobile:
+            try:
+                session_doc = ctx.get(scope="user", collection_name="sessions", doc_id=session_id)
+                if session_doc:
+                    if not resolved_lead_id:
+                        resolved_lead_id = session_doc.get("lead_id")
+                    if not resolved_mobile:
+                        resolved_mobile = session_doc.get("verified_mobile")
+            except Exception as e:
+                print(f"⚠️ [SESSION GET WARNING] Failed to retrieve session document: {e}")
 
     if not resolved_lead_id:
         return {

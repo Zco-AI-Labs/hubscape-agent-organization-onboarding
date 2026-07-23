@@ -16,6 +16,7 @@ from google.cloud import firestore
 logger = logging.getLogger(__name__)
 
 _current_context = contextvars.ContextVar("hubscape_context")
+request_runner_ctx = contextvars.ContextVar("request_runner_ctx", default=None)
 _global_active_context = None
 
 class RemoteAuth:
