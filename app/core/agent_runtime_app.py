@@ -306,25 +306,6 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
         try:
             # Enter the context session to ensure all Firestore calls in tools are authenticated
             with hubscape_adk.context_session(remote_ctx):
-                # 0. Write temporary debug log to Firestore to capture execution parameters
-                try:
-                    remote_ctx.save(
-                        scope="user",
-                        collection_name="sessions",
-                        doc_id="debug_info",
-                        data={
-                            "metadata": str(metadata),
-                            "session_id_resolved": session_id_resolved,
-                            "runner_user_id": runner_user_id,
-                            "user_id_resolved": user_id_resolved,
-                            "context_id": getattr(context, "context_id", None),
-                            "context_context_id_field": getattr(context, "_context_id", None),
-                        }
-                    )
-                except Exception as dbg_err:
-                    import logging
-                    logging.warning("⚠️ Failed to write debug info to Firestore: %s", dbg_err)
-
                 # 1. Restore ADK session trajectory from Firestore if available
                 try:
                     session_doc = remote_ctx.get(scope="user", collection_name="sessions", doc_id=session_id_resolved)
