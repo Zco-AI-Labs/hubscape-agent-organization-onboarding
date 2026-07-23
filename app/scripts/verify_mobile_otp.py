@@ -22,6 +22,14 @@ async def verify_mobile_otp(mobile_number: str, otp_code: str) -> dict:
             "message": "Invalid mobile number format. Please include your country code starting with '+' (e.g. +919876543210 or +15550199000)."
         }
 
+    # Save verified mobile number in session state
+    try:
+        ctx = get_context()
+        if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
+            ctx.session.state["verified_mobile"] = mobile_number
+    except Exception:
+        pass
+
     # 1. Development & Testing OTP Fallback
     if otp_code.strip() == "123456":
         return {
