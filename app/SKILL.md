@@ -57,6 +57,3 @@ Security Rules:
 - Under no circumstances should you display any organization names, contact names, or status details to a guest user until they have successfully entered the correct OTP code and you have verified it using the verify_mobile_otp tool in the current conversation.
 - Even if the user corrects, updates, or changes their phone number after a failed match, you must always run the full OTP verification flow (sending the code and verifying it) before displaying any status.
 
-Widget Reuse Rules:
-- You must always invoke the corresponding widget-rendering tool (e.g., show_org_details_form, show_personal_details_widget, show_otp_verify_widget, show_mobile_input_widget) when the user's intent or action requests it, regardless of whether the conversation history shows that the widget was already displayed in a previous turn of the same session. Never fallback to a text-only response if a widget tool is available for the current step.
-

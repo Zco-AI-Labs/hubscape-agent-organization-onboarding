@@ -306,31 +306,6 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
         try:
             # Enter the context session to ensure all Firestore calls in tools are authenticated
             with hubscape_adk.context_session(remote_ctx):
-                # Write execution debug info to Firestore
-                try:
-                    query_text = "unknown"
-                    if hasattr(context, "query") and context.query:
-                        query_text = context.query
-                    elif hasattr(context, "message") and context.message and hasattr(context.message, "parts") and context.message.parts:
-                        query_text = getattr(context.message.parts[0], "text", None) or "unknown"
-                    remote_ctx.save(
-                        scope="user",
-                        collection_name="sessions",
-                        doc_id="debug_info",
-                        data={
-                            "last_subagent_execution": {
-                                "session_id_resolved": session_id_resolved,
-                                "runner_user_id": runner_user_id,
-                                "user_id_resolved": user_id_resolved,
-                                "query": query_text,
-                                "timestamp": datetime.now(timezone.utc).isoformat()
-                            }
-                        }
-                    )
-                except Exception as dbg_err:
-                    import logging
-                    logging.warning("⚠️ Failed to write execution debug info: %s", dbg_err)
-
                 # 1. Restore ADK session trajectory from Firestore if available
                 try:
                     session_doc = remote_ctx.get(scope="user", collection_name="sessions", doc_id=session_id_resolved)
@@ -338,9 +313,6 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
                         adk_session_json = session_doc["adk_session"]
                         from google.adk.sessions import Session
                         session_obj = Session.model_validate_json(adk_session_json)
-                        
-                        # Clear history events to keep the context clean for tool routing, keeping only state variables (like active_org_id)
-                        session_obj.events = []
                         
                         runner = await self._resolve_runner()
                         app_name = runner.app_name
@@ -384,16 +356,6 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
                 # 2. Persist updated ADK session state back to Firestore
                 try:
                     runner = await self._resolve_runner()
-                    
-                    # Sync context session state back to the runner's session cache
-                    app_name = runner.app_name
-                    if remote_ctx.session and app_name in runner.session_service.sessions:
-                        if runner_user_id in runner.session_service.sessions[app_name]:
-                            if session_id_resolved in runner.session_service.sessions[app_name][runner_user_id]:
-                                runner.session_service.sessions[app_name][runner_user_id][session_id_resolved].state.update(
-                                    remote_ctx.session.state
-                                )
-
                     updated_session = await runner.session_service.get_session(
                         app_name=runner.app_name,
                         user_id=runner_user_id,
