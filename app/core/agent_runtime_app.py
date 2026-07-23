@@ -224,10 +224,35 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
         cloned_agent.instruction = f"{session_context}{roster_str}\n{base_instruction}"
         
         # Instantiate a request-scoped runner to avoid polluting the process-wide singleton
+        # Create a fresh InMemorySessionService for this request to guarantee thread safety
+        from google.adk.sessions.in_memory_session_service import InMemorySessionService
+        request_session_service = InMemorySessionService()
+
+        # 1. Restore ADK session trajectory from Firestore if available
+        session_id_resolved = metadata.get("sessionId") or metadata.get("session_id") or f"session_{user_id_resolved}_{hub_id}"
+        try:
+            session_doc = remote_ctx.get(scope="user", collection_name="sessions", doc_id=session_id_resolved)
+            if session_doc and "adk_session" in session_doc:
+                adk_session_json = session_doc["adk_session"]
+                from google.adk.sessions import Session
+                session_obj = Session.model_validate_json(adk_session_json)
+                
+                app_name = session_obj.app_name
+                uid = session_obj.user_id
+                sid = session_obj.id
+                
+                if app_name not in request_session_service.sessions:
+                    request_session_service.sessions[app_name] = {}
+                if uid not in request_session_service.sessions[app_name]:
+                    request_session_service.sessions[app_name][uid] = {}
+                request_session_service.sessions[app_name][uid][sid] = session_obj
+        except Exception as restore_err:
+            print(f"⚠️ Non-critical: Failed to restore session trajectory in A2A Executor: {restore_err}")
+
         scoped_runner = Runner(
             agent=cloned_agent,
             app_name=base_runner.app_name,
-            session_service=base_runner.session_service,
+            session_service=request_session_service,
             artifact_service=getattr(base_runner, "artifact_service", None),
             memory_service=getattr(base_runner, "memory_service", None),
             credential_service=getattr(base_runner, "credential_service", None),
@@ -237,7 +262,6 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
         token = request_runner_ctx.set(scoped_runner)
         
         # --- OPENTELEMETRY CONTEXT ENRICHMENT ---
-        session_id_resolved = metadata.get("sessionId") or metadata.get("session_id") or f"session_{user_id_resolved}_{hub_id}"
         
         # --- TELEMETRY CONTEXT VARIABLES SETTING ---
         telemetry_org_id.set(org_id or "unknown")
@@ -338,6 +362,26 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
             # Enter the context session to ensure all Firestore calls in tools are authenticated
             with hubscape_adk.context_session(remote_ctx):
                 await super().execute(context, interceptor)
+
+            # 2. Persist updated ADK session state back to Firestore
+            try:
+                updated_session = await request_session_service.get_session(
+                    app_name=base_runner.app_name,
+                    user_id=user_id_resolved,
+                    session_id=session_id_resolved
+                )
+                if updated_session:
+                    serialized_json = updated_session.model_dump_json()
+                    remote_ctx.save(
+                        scope="user",
+                        collection_name="sessions",
+                        doc_id=session_id_resolved,
+                        data={
+                            "adk_session": serialized_json
+                        }
+                    )
+            except Exception as save_err:
+                print(f"⚠️ Non-critical: Failed to save session trajectory in A2A Executor: {save_err}")
         finally:
             request_runner_ctx.reset(token)
 
@@ -653,6 +697,7 @@ class AgentEngineApp(A2aAgent):
 
 gemini_location = os.environ.get("GOOGLE_CLOUD_LOCATION")
 logs_bucket_name = os.environ.get("LOGS_BUCKET_NAME")
+from app.app_utils import services
 agent_runtime = AgentEngineApp.create(
     app=adk_app,
     artifact_service=(
@@ -660,5 +705,5 @@ agent_runtime = AgentEngineApp.create(
         if logs_bucket_name
         else InMemoryArtifactService()
     ),
-    session_service=InMemorySessionService(),
+    session_service=services.get_session_service(),
 )
