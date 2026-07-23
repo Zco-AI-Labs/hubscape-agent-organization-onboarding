@@ -220,7 +220,8 @@ async def consultAgent(agentId: str, query: str) -> str:
                                 "userPreferences": parameters.get("userPreferences") or {}
                             }
                         })
-                        return message or f"Displaying agent widget: {parameters.get('widgetId')}"
+                        widget_id = parameters.get("widgetId")
+                        return f"{message}\n\n[Widget: {widget_id} (agent: {agentId})]" if message else f"Displaying agent widget: {widget_id} (agent: {agentId})"
                         
                     elif target_tool == "suggestQueries":
                         ctx.actions.append({
@@ -251,7 +252,7 @@ async def consultAgent(agentId: str, query: str) -> str:
                         ctx.actions.append({
                             "type": "END_CALL"
                         })
-                        return message or "Call ended."
+                        return f"{message}\n\n[Call Ended]" if message else "Call ended."
                         
                 elif directive == "respond_to_user":
                     return message
