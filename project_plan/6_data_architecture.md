@@ -18,14 +18,8 @@ This agent utilizes a local JSON mock database file (`app/mock_db.json`) during 
       "contact_email": null,
       "contact_mobile": null,
       "contact_name": null,
+      "owner_id": "anonymous",
       "created_at": "2026-07-10T10:14:39Z"
-    }
-  ],
-  "registered_users": [
-    {
-      "mobile_number": "555-0199",
-      "full_name": "Alex Doe",
-      "email_address": "alex@apex.com"
     }
   ],
   "active_otps": {
@@ -55,9 +49,10 @@ This agent utilizes a local JSON mock database file (`app/mock_db.json`) during 
 | `contact_email` | `String` | Verified contact email address linked to the lead | Optional |
 | `contact_mobile` | `String` | Verified personal mobile number linked to the lead | Optional |
 | `contact_name` | `String` | Full name of the contact person linked to the lead | Optional |
+| `owner_id` | `String` | User ID of the owner (or "anonymous" if unauthenticated) | Mandatory |
 | `created_at` | `String` | ISO timestamp of creation | Mandatory |
 
 #### Phone Number Lookup Normalization Rule
-Before checking if the user exists in `registered_users` by mobile number:
+Before checking if the user exists in `leads` by mobile number:
 1. Strip all non-digit characters (e.g. `+`, `-`, `(`, `)`, spaces).
-2. Strip leading country code `1` or `+1` if present (e.g. `+1 (555) 0199` and `555-0199` both normalize to `5550199` for exact matching against `registered_users` records).
+2. Strip leading country code `1` or `+1` if present (e.g. `+1 (555) 0199` and `555-0199` both normalize to `5550199` for exact matching against `leads` records).

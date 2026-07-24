@@ -31,18 +31,25 @@ async def check_mobile_exist(mobile_number: str) -> dict:
         return clean
     
     input_num = normalize_phone(mobile_number)
-    user = ctx.get(scope="platform", collection_name="registered_users", doc_id=input_num)
     
-    if not user:
-        user_records = ctx.list(scope="platform", collection_name="registered_users")
-        for u in user_records:
-            if normalize_phone(u.get("mobile_number", "")) == input_num:
-                user = u
-                break
-                
-    if user:
+    # Check leads to see if user has already entered their contact info under this number
+    leads = ctx.list(scope="platform", collection_name="leads")
+    matching_lead = None
+    for lead in leads:
+        lead_num = normalize_phone(lead.get("contact_mobile") or "")
+        if lead_num == input_num:
+            matching_lead = lead
+            break
+
+    if matching_lead:
+        # Build registered user properties from the lead snapshot
+        user = {
+            "mobile_number": input_num,
+            "full_name": matching_lead.get("contact_name") or "New User",
+            "email_address": matching_lead.get("contact_email") or ""
+        }
+        
         linked_orgs = []
-        leads = ctx.list(scope="platform", collection_name="leads")
         for lead in leads:
             lead_num = normalize_phone(lead.get("contact_mobile") or "")
             if lead_num == input_num or (lead.get("contact_email") and lead.get("contact_email") == user.get("email_address")):

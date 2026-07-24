@@ -35,12 +35,19 @@ def mock_db():
     """In-memory database isolation mock for all ADK RemoteContext CRUD actions."""
     db = {}
     
-    # Default registered users setup for both agent IDs
+    # Default lead and session override setup for both agent IDs
     for agent_id in ["organization_subscription_agent", "organization-onboarding-agent", "sales-onboarding-agent", "sales_onboarding_agent", "default_agent"]:
-        db[f"agents/{agent_id}/agent_data/platform/registered_users/5550199"] = {
-            "mobile_number": "555-0199",
-            "full_name": "Alex Doe",
-            "email_address": "alex@apex.com",
+        db[f"agents/{agent_id}/agent_data/platform/leads/lead_alex"] = {
+            "id": "lead_alex",
+            "org_name": "Apex Innovations",
+            "org_description": "Robotics",
+            "org_website": "apex.com",
+            "user_position": "CEO",
+            "status": "ASSOCIATED",
+            "contact_email": "alex@apex.com",
+            "contact_mobile": "5550199",
+            "contact_name": "Alex Doe",
+            "owner_id": "alex@apex.com",
             "version": 1
         }
         db[f"agents/{agent_id}/agent_data/platform/session_config/override"] = {

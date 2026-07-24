@@ -66,28 +66,20 @@ async def associate_contact_and_alert(
     lead["contact_name"] = full_name or lead.get("contact_name") or "New User"
     lead["status"] = "ASSOCIATED"
     
+    # Set owner_id to user_id if authenticated; otherwise keep/set it as "anonymous"
+    user_id = ctx.auth.get_user_id()
+    is_authenticated = bool(
+        user_id
+        and not user_id.startswith("guest")
+        and not user_id.startswith("anonymous")
+        and user_id not in ("dummy_user", "default_user", "dev-user-123")
+    )
+    if is_authenticated:
+        lead["owner_id"] = user_id
+    elif lead.get("owner_id") is None:
+        lead["owner_id"] = "anonymous"
+
     ctx.save(scope="platform", collection_name="leads", doc_id=org_id, data=lead)
-    
-    # Check if user exists in registered_users
-    user_exists = ctx.get(scope="platform", collection_name="registered_users", doc_id=clean_mobile)
-    if not user_exists:
-        user_records = ctx.list(scope="platform", collection_name="registered_users")
-        for u in user_records:
-            if normalize_phone(u.get("mobile_number", "")) == clean_mobile:
-                user_exists = u
-                break
-                
-    if not user_exists:
-        ctx.save(
-            scope="platform",
-            collection_name="registered_users",
-            doc_id=clean_mobile,
-            data={
-                "mobile_number": clean_mobile,
-                "full_name": full_name or "New User",
-                "email_address": contact_email
-            }
-        )
         
     # Add Sales Representative alert log
     alert_id = f"alert_{int(time.time())}"

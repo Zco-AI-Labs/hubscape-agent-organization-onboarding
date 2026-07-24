@@ -31,6 +31,15 @@ async def save_org_details(
     ctx = get_context()
     org_id = f"lead_{int(time.time())}"
     
+    user_id = ctx.auth.get_user_id()
+    is_authenticated = bool(
+        user_id
+        and not user_id.startswith("guest")
+        and not user_id.startswith("anonymous")
+        and user_id not in ("dummy_user", "default_user", "dev-user-123")
+    )
+    owner_id = user_id if is_authenticated else "anonymous"
+    
     lead_data = {
         "id": org_id,
         "org_name": org_name,
@@ -40,7 +49,8 @@ async def save_org_details(
         "status": "UNVERIFIED",
         "contact_email": None,
         "contact_mobile": None,
-        "contact_name": None
+        "contact_name": None,
+        "owner_id": owner_id
     }
     
     ctx.save(

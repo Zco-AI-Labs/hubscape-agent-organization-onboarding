@@ -57,6 +57,19 @@ async def submit_personal(
     lead["contact_name"] = full_name.strip()
     lead["status"] = "ASSOCIATED"
 
+    # Update owner_id if the user is authenticated in this session
+    user_id = ctx.auth.get_user_id()
+    is_authenticated = bool(
+        user_id
+        and not user_id.startswith("guest")
+        and not user_id.startswith("anonymous")
+        and user_id not in ("dummy_user", "default_user", "dev-user-123")
+    )
+    if is_authenticated:
+        lead["owner_id"] = user_id
+    elif lead.get("owner_id") is None:
+        lead["owner_id"] = "anonymous"
+
     ctx.save(scope="platform", collection_name="leads", doc_id=org_id, data=lead)
 
     # Queue rendering the summary card widget

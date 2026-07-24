@@ -39,19 +39,6 @@ async def check_session() -> dict:
         )
 
     if is_valid:
-        # Retrieve the user record from the database if matching
-        full_name = user_id
-        email_address = user_id if "@" in user_id else ""
-        mobile_number = ""
-        
-        user_records = ctx.list(scope="platform", collection_name="registered_users")
-        for user in user_records:
-            if user.get("email_address") == user_id or user.get("full_name") == user_id or user.get("mobile_number") == user_id:
-                full_name = user.get("full_name") or full_name
-                email_address = user.get("email_address") or email_address
-                mobile_number = user.get("mobile_number") or mobile_number
-                break
-        
         def normalize_phone(num: str) -> str:
             """
             Helper to normalize formatting by extracting digits and stripping country codes.
@@ -60,17 +47,40 @@ async def check_session() -> dict:
             if (len(clean) == 11 or len(clean) == 8) and clean.startswith("1"):
                 clean = clean[1:]
             return clean
-        
-        clean_mobile = normalize_phone(mobile_number)
+
+        # Set default fallback values
+        full_name = user_id
+        email_address = user_id if "@" in user_id else ""
+        mobile_number = user_id if not "@" in user_id else ""
+        clean_user_id = normalize_phone(user_id)
+
         linked_orgs = []
         leads = ctx.list(scope="platform", collection_name="leads")
         for lead in leads:
-            db_num = normalize_phone(lead.get("contact_mobile") or "")
-            if db_num == clean_mobile or (lead.get("contact_email") and lead.get("contact_email") == email_address):
+            lead_owner = lead.get("owner_id")
+            lead_email = lead.get("contact_email")
+            lead_mobile = lead.get("contact_mobile")
+            
+            is_match = False
+            if lead_owner == user_id:
+                is_match = True
+            elif lead_email and email_address and lead_email.strip().lower() == email_address.strip().lower():
+                is_match = True
+            elif lead_mobile and clean_user_id and normalize_phone(lead_mobile) == clean_user_id:
+                is_match = True
+                
+            if is_match:
                 linked_orgs.append({
                     "org_name": lead.get("org_name"),
                     "status": lead.get("status")
                 })
+                # Populate user contact details from the matching lead if we don't have them yet
+                if lead_email:
+                    email_address = lead_email
+                if lead_mobile:
+                    mobile_number = lead_mobile
+                if lead.get("contact_name"):
+                    full_name = lead.get("contact_name")
         
         primary_org = linked_orgs[0] if linked_orgs else None
         return {

@@ -9,7 +9,9 @@
       "props": {
         "name": "org_name",
         "label": "Organization Legal Name",
-        "placeholder": "Name"
+        "placeholder": "Name",
+        "required": true,
+        "errorMessage": "Organization Legal Name is required"
       }
     },
     {
@@ -18,7 +20,9 @@
         "name": "org_description",
         "label": "Brief Description",
         "placeholder": "Description",
-        "multiline": true
+        "multiline": true,
+        "required": true,
+        "errorMessage": "A brief description of your organization is required"
       }
     },
     {
@@ -26,7 +30,10 @@
       "props": {
         "name": "org_website",
         "label": "Organization Website (Optional)",
-        "placeholder": "Website (Optional)"
+        "placeholder": "Website (Optional)",
+        "validationType": "pattern",
+        "pattern": "^$|^[^\\s]+\\.[^\\s]{2,}$",
+        "errorMessage": "Please enter a valid website format (e.g. apex.com or www.apex.com)"
       }
     },
     {
@@ -34,7 +41,9 @@
       "props": {
         "name": "user_position",
         "label": "Your Position/Title in Organization",
-        "placeholder": "Position/Title"
+        "placeholder": "Position/Title",
+        "required": true,
+        "errorMessage": "Your position/title in the organization is required"
       }
     },
     {
