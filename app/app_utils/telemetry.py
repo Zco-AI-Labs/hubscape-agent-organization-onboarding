@@ -42,9 +42,10 @@ def setup_telemetry() -> str | None:
             "OTEL_SEMCONV_STABILITY_OPT_IN", "gen_ai_latest_experimental"
         )
         commit_sha = os.environ.get("COMMIT_SHA", "dev")
+        agent_namespace = os.environ.get("AGENT_NAME") or os.environ.get("GOOGLE_CLOUD_AGENT_ENGINE_ID") or "custom-agent"
         os.environ.setdefault(
             "OTEL_RESOURCE_ATTRIBUTES",
-            f"service.namespace=custom-agent,service.version={commit_sha}",
+            f"service.namespace={agent_namespace},service.version={commit_sha}",
         )
         path = os.environ.get("GENAI_TELEMETRY_PATH", "completions")
         os.environ.setdefault(
@@ -57,3 +58,24 @@ def setup_telemetry() -> str | None:
         )
 
     return bucket
+
+
+def setup_agent_engine_telemetry() -> None:
+    """Install the Agent Engine tracer provider (traces/logs to the customer project).
+
+    Tags spans with the reasoningEngine resource. The OTel resource is fixed at
+    provider creation, so this must run before get_fast_api_app to set the tags.
+    No-op unless GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY is set.
+    """
+    if os.environ.get("GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY", "").lower() not in (
+        "true",
+        "1",
+    ):
+        return
+
+    import google.auth
+    from vertexai.agent_engines.templates.adk import _default_instrumentor_builder
+
+    _, project_id = google.auth.default()
+    _default_instrumentor_builder(project_id, enable_tracing=True, enable_logging=True)
+

@@ -24,8 +24,8 @@ Every agent is structured as a Python package inside the `app/` directory:
 3. **`app/scripts/` (Required)**: Python scripts implementing individual tool handlers.
 4. **`pyproject.toml` (Required)**: Package dependencies and python configurations.
    - **Automated Configuration Naming Sync:** You only need to set the `name` argument of `AdkAgent` in `app/agent.py`. The deployment script (`deploy.py`) automatically synchronizes this name across all static configuration files (manifests, packaging, lockfiles, Skill files, and Terraform configurations) during deployment.
-
-5. **`app/__init__.py` (Required)**: Exposes the app singleton:
+5. **`config.json` (Required)**: Stores developer-defined custom parameters (under `create_params` nested in `"agents-cli-manifest"`). This file is git-tracked and preserved when `hubscape-adk -u` runs (which overwrites `agents-cli-manifest.yaml` with the default template). During deployment, `deploy.py` merges `config.json` parameters back into `agents-cli-manifest.yaml`.
+6. **`app/__init__.py` (Required)**: Exposes the app singleton:
    ```python
    from .agent import app
    __all__ = ["app"]

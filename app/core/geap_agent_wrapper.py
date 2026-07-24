@@ -1,8 +1,6 @@
 import os
 import uuid
-import importlib.util
 import json
-import urllib.request
 import time
 from google.genai import types
 from google.adk.runners import Runner
@@ -18,7 +16,6 @@ class GEAPAgentWrapper:
         start_time = time.time()
         core_dir = os.path.dirname(os.path.abspath(__file__))
         runtime_dir = os.path.abspath(os.path.join(core_dir, ".."))
-        
 
         user_id = (context or {}).get("userId") or (context or {}).get("user_id") or "anonymous_user"
         org_id = (context or {}).get("orgId") or (context or {}).get("org_id")
@@ -57,26 +54,6 @@ class GEAPAgentWrapper:
         except Exception:
             pass
         
-        # --- OPENTELEMETRY CONTEXT ENRICHMENT (OPTION A) ---
-        try:
-            from opentelemetry import trace
-            current_span = trace.get_current_span()
-            if current_span:
-                current_span.set_attribute("org_id", org_id or "unknown")
-                current_span.set_attribute("hub_id", hub_id or "unknown")
-                current_span.set_attribute("user_id", user_id or "unknown")
-                current_span.set_attribute("gen_ai.conversation_id", session_id)
-                current_span.set_attribute("gen_ai.request.model", self.agent.model.model_name)
-                current_span.set_attribute("provider", "vertex")
-                
-                # Determine query type (direct vs nested A2A) using call depth
-                depth = (context or {}).get("depth", 0)
-                request_type = "a2a" if depth > 0 else "direct"
-                current_span.set_attribute("gen_ai.request.type", request_type)
-        except Exception as otel_err:
-            print(f"⚠️ Failed to set OpenTelemetry span attributes: {otel_err}")
-        # ----------------------------------------------------
-        
         with hubscape_adk.context_session(remote_ctx):
             from google.adk.sessions.in_memory_session_service import InMemorySessionService
             from google.adk.artifacts.in_memory_artifact_service import InMemoryArtifactService
@@ -97,16 +74,17 @@ class GEAPAgentWrapper:
                     session_obj = Session.model_validate_json(adk_session_json)
                     
                     app_name = session_obj.app_name
-                    user_id_field = session_obj.user_id
+                    uid = session_obj.user_id
                     sid = session_obj.id
                     
                     if app_name not in session_service.sessions:
                         session_service.sessions[app_name] = {}
-                    if user_id_field not in session_service.sessions[app_name]:
-                        session_service.sessions[app_name][user_id_field] = {}
-                    session_service.sessions[app_name][user_id_field][sid] = session_obj
+                    if uid not in session_service.sessions[app_name]:
+                        session_service.sessions[app_name][uid] = {}
+                    session_service.sessions[app_name][uid][sid] = session_obj
             except Exception as restore_err:
                 print(f"⚠️ Non-critical: Failed to restore session trajectory: {restore_err}")
+
             workspace_type = (context or {}).get("workspaceType")
             workspace_id = (context or {}).get("workspaceId")
             if not workspace_type or not workspace_id:
@@ -114,7 +92,7 @@ class GEAPAgentWrapper:
                 workspace_type = "organization" if is_org_scope else "hub"
                 workspace_id = org_id if is_org_scope else hub_id
 
-            # Concurrency-safe dynamic tool filtering based on workspace scope
+            # Concurrency-safe dynamic tool filtering based on workspace scope and user privileges
             cloned_agent = hubscape_adk.filter_tools_for_scope(
                 agent=self.agent,
                 user_privileges=remote_ctx.user_privileges,
@@ -123,7 +101,6 @@ class GEAPAgentWrapper:
                 org_id=org_id
             )
             
-            # Inject Active Workspace Context into instruction block
             raw_mode = (context or {}).get("interaction_mode") or (context or {}).get("mode") or "chat_pc"
             normalized_mode = "chat_pc" if raw_mode == "chat_phone" else raw_mode
             session_context = (
@@ -133,7 +110,8 @@ class GEAPAgentWrapper:
                 f"- Workspace ID: {workspace_id or 'none'}\n"
                 f"- Organization ID: {org_id or 'none'}\n"
             )
-            cloned_agent.instruction = f"{session_context}\n{self.agent.instruction or ''}"
+            base_instruction = self.agent.instruction or ""
+            cloned_agent.instruction = f"{session_context}\n{base_instruction}"
             
             # Create a fresh runner for this request to guarantee thread safety
             runner = Runner(
@@ -163,7 +141,7 @@ class GEAPAgentWrapper:
                     session_id=session_id
                 )
             remote_ctx.session = session_obj  # Now ctx.session exists on ALL turns!
-
+            
             collected_outputs = []
             async for event in runner.run_async(
                 user_id=user_id,
@@ -179,6 +157,7 @@ class GEAPAgentWrapper:
                     clean_out = out.strip()
                     if not collected_outputs or clean_out != collected_outputs[-1].strip():
                         collected_outputs.append(clean_out)
+            
             text_response = "\n".join(collected_outputs)
             
             # 2. Persist updated ADK session state back to Firestore
@@ -208,7 +187,8 @@ class GEAPAgentWrapper:
                 if current_span:
                     latency_ms = (time.time() - start_time) * 1000.0
                     current_span.set_attribute("latency_ms", float(latency_ms))
-            except Exception as otel_err:
+            except Exception:
                 pass
                 
             return text_response
+

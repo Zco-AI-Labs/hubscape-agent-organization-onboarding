@@ -27,7 +27,8 @@ We use a segregated, decoupled directory layout (the staged standard) for settin
 
 ```text
 my-agent/
-├── agents-cli-manifest.yaml # REQUIRED: agents-cli manifest
+├── config.json              # REQUIRED: Developer-defined custom manifest parameters
+├── agents-cli-manifest.yaml # REQUIRED: agents-cli manifest (updated dynamically by deploy.py)
 ├── deploy.py               # REQUIRED: Subprocess wrapper to run agents-cli deploy
 ├── pyproject.toml          # REQUIRED: uv dependency manager configuration
 └── app/                    # REQUIRED: Agent directory containing python code
@@ -287,7 +288,77 @@ my_special_agent_app = MySpecialAgent()
 ### 2. Packaging and Deploying (`deploy.py`)
 Deploying an agent as a Vertex AI Reasoning Engine involves a script that calls the containerized `agents-cli deploy` command.
 
-We use a standard root-level `deploy.py` script that acts as a wrapper to execute `agents-cli deploy` via a subprocess:
+To prevent developer-defined parameters under the `create_params` block in `agents-cli-manifest.yaml` from being overwritten when running template updates (`hubscape-adk -u`), custom options must be defined in `config.json` in the root of the repository:
+
+```json
+{
+  "agents-cli-manifest": {
+    "create_params": {
+      "deployment_target": "agent_runtime",
+      "is_a2a": true,
+      "session_type": "in_memory",
+      "cicd_runner": "skip",
+      "include_data_ingestion": false,
+      "datastore": "none",
+      "agent_guidance_filename": "GEMINI.md"
+    }
+  }
+}
+```
+
+Below are three examples of how different agents are configured using different parameter values in `config.json`:
+
+#### Example 1: Knowledge Agent (RAG Corpus Datastore)
+```json
+{
+  "agents-cli-manifest": {
+    "create_params": {
+      "deployment_target": "agent_runtime",
+      "is_a2a": true,
+      "session_type": "in_memory",
+      "cicd_runner": "skip",
+      "include_data_ingestion": true,
+      "datastore": "projects/hubscape-geap/locations/us-central1/ragCorpora/8331289874728484864",
+      "agent_guidance_filename": "GEMINI.md"
+    }
+  }
+}
+```
+
+#### Example 2: Onboarding Agent (Vertex AI Session Service)
+```json
+{
+  "agents-cli-manifest": {
+    "create_params": {
+      "deployment_target": "agent_runtime",
+      "is_a2a": true,
+      "session_type": "vertex_ai_session_service",
+      "cicd_runner": "skip",
+      "include_data_ingestion": false,
+      "datastore": "none",
+      "agent_guidance_filename": "GEMINI.md"
+    }
+  }
+}
+```
+
+#### Example 3: Host (Vertex AI Memory Bank)
+```json
+{
+  "agents-cli-manifest": {
+    "create_params": {
+      "deployment_target": "agent_runtime",
+      "is_a2a": true,
+      "cicd_runner": "skip",
+      "include_data_ingestion": true,
+      "datastore": "vertex_ai_memory_bank",
+      "agent_guidance_filename": "GEMINI.md"
+    }
+  }
+}
+```
+
+We use a standard root-level `deploy.py` script that acts as a wrapper. It automatically merges the parameters from `config.json` into `agents-cli-manifest.yaml` before running the `agents-cli deploy` command via a subprocess:
 
 ```python
 import os

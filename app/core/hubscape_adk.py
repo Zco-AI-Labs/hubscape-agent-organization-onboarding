@@ -2,6 +2,9 @@ import contextvars
 import contextlib
 import datetime
 import logging
+import os
+import httpx
+
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -395,6 +398,100 @@ class RemoteContext:
             raise RuntimeError(f"OTP verification request failed: {resp.text}")
         return resp.json()
 
+    def get_agent_token(self, token_name: str) -> Optional[dict]:
+        """Retrieves stored integration token credentials for the user."""
+        return self.get(scope="user", collection_name="tokens", doc_id=token_name)
+
+    def save_agent_token(self, token_name: str, data: dict) -> dict:
+        """Saves integration token credentials for the user."""
+        return self.save(scope="user", collection_name="tokens", doc_id=token_name, data=data)
+
+    async def get_oauth_token(self, provider: str) -> Optional[str]:
+        """
+        Gets the active oauth access token, performing a token refresh if expired.
+        """
+        token_data = self.get_agent_token(provider)
+        if not token_data:
+            return None
+
+        access_token = token_data.get("access_token")
+        refresh_token = token_data.get("refresh_token")
+        expires_at_str = token_data.get("expires_at")
+
+        # Check if expired or about to expire in the next 60 seconds
+        is_expired = False
+        if expires_at_str:
+            try:
+                expires_at = datetime.datetime.fromisoformat(expires_at_str)
+                now = datetime.datetime.now(datetime.timezone.utc)
+                if expires_at - now < datetime.timedelta(seconds=60):
+                    is_expired = True
+            except Exception:
+                is_expired = True
+
+        # Perform token refresh if expired and we have a refresh token
+        if is_expired and refresh_token:
+            client_id = os.getenv(f"{provider.upper()}_CLIENT_ID")
+            client_secret = os.getenv(f"{provider.upper()}_CLIENT_SECRET")
+
+            # Fallback configuration endpoints if not defined on platform
+            token_urls = {
+                "github": "https://github.com/login/oauth/access_token",
+                "google": "https://oauth2.googleapis.com/token",
+                "jira": "https://auth.atlassian.com/oauth/token",
+                "slack": "https://slack.com/api/oauth.v2.access"
+            }
+            token_url = token_urls.get(provider)
+
+            if client_id and client_secret and token_url:
+                payload = {
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "refresh_token": refresh_token,
+                    "grant_type": "refresh_token"
+                }
+                headers = {"Accept": "application/json"}
+                try:
+                    async with httpx.AsyncClient() as client:
+                        resp = await client.post(token_url, data=payload, headers=headers, timeout=10.0)
+                        if resp.status_code == 200:
+                            token_resp = resp.json()
+                            refreshed_data = {
+                                "access_token": token_resp.get("access_token"),
+                                "refresh_token": token_resp.get("refresh_token", refresh_token),
+                                "expires_in": token_resp.get("expires_in"),
+                                "token_type": token_resp.get("token_type", "Bearer"),
+                                "scope": token_resp.get("scope", token_data.get("scope", ""))
+                            }
+                            # Calculate new expiration datetime
+                            if "expires_in" in token_resp:
+                                exp = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=int(token_resp["expires_in"]))
+                                refreshed_data["expires_at"] = exp.isoformat()
+                                
+                            self.save_agent_token(provider, refreshed_data)
+                            return refreshed_data.get("access_token")
+                except Exception as e:
+                    logger.warning(f"Failed to refresh expired OAuth token for {provider}: {e}")
+
+        return access_token
+
+    def trigger_oauth_flow(self, provider: str, redirect_back: Optional[str] = None) -> dict:
+        """Triggers local mock OAuth authentication challenge payload."""
+        return {
+            "status": "error",
+            "message": f"Authorization required for {provider}.",
+            "error_type": "AUTH_REQUIRED",
+            "system_action": {
+                "type": "TRIGGER_OAUTH",
+                "payload": {
+                    "provider": provider,
+                    "agent_id": self.agent_id,
+                    "redirect_back": redirect_back
+                }
+            }
+        }
+
+
 def get_context() -> RemoteContext:
     try:
         return _current_context.get()
@@ -462,9 +559,6 @@ def require_tool_privilege(func):
     is_async = inspect.iscoroutinefunction(func)
 
     def verify_privilege():
-        if func.__name__ in ("consultAgent", "discover_agents", "suggestQueries"):
-            return True
-            
         try:
             context = get_context()
             token = context.raw_context.get("capability_token")

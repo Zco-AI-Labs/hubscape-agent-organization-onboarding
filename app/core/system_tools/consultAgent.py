@@ -99,12 +99,6 @@ async def consultAgent(agentId: str, query: str) -> str:
         
         # Request metadata provider to securely propagate RBAC context and increment call depth
         def request_meta_provider(invocation_context, a2a_message):
-            resolved_session_id = None
-            if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "id"):
-                resolved_session_id = ctx.session.id
-            if not resolved_session_id:
-                resolved_session_id = raw_ctx.get("sessionId") or raw_ctx.get("session_id") or f"session_{ctx.auth.get_user_id()}_{ctx.auth.hub_id}"
-
             return {
                 "userId": ctx.auth.get_user_id(),
                 "user_id": ctx.auth.get_user_id(),
@@ -112,8 +106,6 @@ async def consultAgent(agentId: str, query: str) -> str:
                 "org_id": ctx.auth.org_id,
                 "hubId": ctx.auth.hub_id,
                 "hub_id": ctx.auth.hub_id,
-                "sessionId": resolved_session_id,
-                "session_id": resolved_session_id,
                 "mode": raw_ctx.get("mode"),
                 "accessible_agents": accessible_agents,
                 "depth": current_depth + 1,
@@ -156,14 +148,19 @@ async def consultAgent(agentId: str, query: str) -> str:
             session_service=InMemorySessionService()
         )
         
-        subagent_output = ""
+        collected_chunks = []
         async for ev in subagent.run_async(parent_context=parent_ctx):
-            if ev.output:
-                subagent_output += ev.output
-            elif ev.content and ev.content.parts:
-                for part in ev.content.parts:
-                    if part.text:
-                        subagent_output += part.text
+            out = getattr(ev, "output", None)
+            if not out and getattr(ev, "content", None) and getattr(ev.content, "parts", None):
+                text_parts = [p.text for p in ev.content.parts if getattr(p, "text", None)]
+                if text_parts:
+                    out = "\n".join(text_parts)
+            if out and isinstance(out, str) and out.strip():
+                clean_out = out.strip()
+                if not collected_chunks or clean_out != collected_chunks[-1].strip():
+                    collected_chunks.append(clean_out)
+        
+        subagent_output = "\n".join(collected_chunks)
             
         # 3. Intercept directives and map to client actions
         try:
