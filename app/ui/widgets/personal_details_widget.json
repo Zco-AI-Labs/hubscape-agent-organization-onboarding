@@ -5,32 +5,40 @@
   },
   "children": [
     {
-      "type": "input",
+      "type": "container",
       "props": {
-        "name": "full_name",
-        "label": "Contact Person Full Name",
-        "placeholder": "Alex Doe",
-        "inputType": "text"
-      }
-    },
-    {
-      "type": "input",
-      "props": {
-        "name": "contact_email",
-        "label": "Contact Email Address",
-        "placeholder": "alex@apex.com",
-        "inputType": "text"
-      }
-    },
-    {
-      "type": "button",
-      "props": {
-        "label": "Submit Contact Details",
-        "actionUrl": "agent://submit_personal",
-        "styling": {
-          "colorTheme": "pink"
+        "className": "flex flex-col gap-4"
+      },
+      "children": [
+        {
+          "type": "input",
+          "props": {
+            "name": "full_name",
+            "label": "Contact Person Full Name",
+            "placeholder": "Alex Doe",
+            "inputType": "text"
+          }
+        },
+        {
+          "type": "input",
+          "props": {
+            "name": "contact_email",
+            "label": "Contact Email Address",
+            "placeholder": "alex@apex.com",
+            "inputType": "text"
+          }
+        },
+        {
+          "type": "button",
+          "props": {
+            "label": "Submit Contact Details",
+            "actionUrl": "agent://submit_personal",
+            "styling": {
+              "colorTheme": "pink"
+            }
+          }
         }
-      }
+      ]
     },
     {
       "type": "button",

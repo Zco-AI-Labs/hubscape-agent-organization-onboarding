@@ -5,23 +5,31 @@
   },
   "children": [
     {
-      "type": "input",
+      "type": "container",
       "props": {
-        "name": "mobile_number",
-        "label": "Personal Contact Mobile Number",
-        "placeholder": "555-0199",
-        "inputType": "text"
-      }
-    },
-    {
-      "type": "button",
-      "props": {
-        "label": "Check Account",
-        "actionUrl": "agent://check_mobile_exist",
-        "styling": {
-          "colorTheme": "slate"
+        "className": "flex flex-col gap-2"
+      },
+      "children": [
+        {
+          "type": "input",
+          "props": {
+            "name": "mobile_number",
+            "label": "Personal Contact Mobile Number",
+            "placeholder": "555-0199",
+            "inputType": "text"
+          }
+        },
+        {
+          "type": "button",
+          "props": {
+            "label": "Check Account",
+            "actionUrl": "agent://check_mobile_exist",
+            "styling": {
+              "colorTheme": "slate"
+            }
+          }
         }
-      }
+      ]
     },
     {
       "type": "button",

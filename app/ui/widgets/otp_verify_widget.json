@@ -5,23 +5,31 @@
   },
   "children": [
     {
-      "type": "input",
+      "type": "container",
       "props": {
-        "name": "otp_code",
-        "label": "Enter 6-digit Verification Code",
-        "placeholder": "123456",
-        "inputType": "text"
-      }
-    },
-    {
-      "type": "button",
-      "props": {
-        "label": "Verify OTP",
-        "actionUrl": "agent://verify_mobile_otp",
-        "styling": {
-          "colorTheme": "blue"
+        "className": "flex flex-col gap-2"
+      },
+      "children": [
+        {
+          "type": "input",
+          "props": {
+            "name": "otp_code",
+            "label": "Enter 6-digit Verification Code",
+            "placeholder": "123456",
+            "inputType": "text"
+          }
+        },
+        {
+          "type": "button",
+          "props": {
+            "label": "Verify OTP",
+            "actionUrl": "agent://verify_mobile_otp",
+            "styling": {
+              "colorTheme": "blue"
+            }
+          }
         }
-      }
+      ]
     },
     {
       "type": "button",
