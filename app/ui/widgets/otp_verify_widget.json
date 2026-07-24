@@ -5,47 +5,33 @@
   },
   "children": [
     {
-      "type": "container",
+      "type": "input",
       "props": {
-        "className": "flex flex-col gap-2"
-      },
-      "children": [
-        {
-          "type": "input",
-          "props": {
-            "name": "otp_code",
-            "label": "Enter 6-digit Verification Code",
-            "placeholder": "123456",
-            "inputType": "text"
-          }
-        },
-        {
-          "type": "button",
-          "props": {
-            "label": "Verify OTP",
-            "actionUrl": "agent://verify_mobile_otp",
-            "styling": {
-              "colorTheme": "blue"
-            }
-          }
-        }
-      ]
+        "name": "otp_code",
+        "label": "Enter 6-digit Verification Code",
+        "placeholder": "123456",
+        "inputType": "text"
+      }
     },
     {
-      "type": "container",
+      "type": "button",
       "props": {
-        "className": "flex flex-col"
-      },
-      "children": [
-        {
-          "type": "button",
-          "props": {
-            "label": "Cancel",
-            "actionUrl": "agent://close_widget",
-            "className": "bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg w-full font-medium transition-colors"
-          }
+        "label": "Verify OTP",
+        "actionUrl": "agent://verify_mobile_otp",
+        "styling": {
+          "colorTheme": "blue"
         }
-      ]
+      }
+    },
+    {
+      "type": "button",
+      "props": {
+        "label": "Cancel",
+        "actionUrl": "agent://close_widget",
+        "styling": {
+          "colorTheme": "slate"
+        }
+      }
     }
   ]
 }

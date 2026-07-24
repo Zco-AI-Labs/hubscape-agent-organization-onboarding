@@ -15,8 +15,7 @@
         "show_otp_verify_widget",
         "show_personal_details_widget",
         "show_contact_form",
-        "submit_personal",
-        "close_widget"
+        "submit_personal"
       ]
     }
   }

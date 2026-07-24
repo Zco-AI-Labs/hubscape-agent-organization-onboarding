@@ -5,56 +5,42 @@
   },
   "children": [
     {
-      "type": "container",
+      "type": "input",
       "props": {
-        "className": "flex flex-col gap-4"
-      },
-      "children": [
-        {
-          "type": "input",
-          "props": {
-            "name": "full_name",
-            "label": "Contact Person Full Name",
-            "placeholder": "Alex Doe",
-            "inputType": "text"
-          }
-        },
-        {
-          "type": "input",
-          "props": {
-            "name": "contact_email",
-            "label": "Contact Email Address",
-            "placeholder": "alex@apex.com",
-            "inputType": "text"
-          }
-        },
-        {
-          "type": "button",
-          "props": {
-            "label": "Submit Contact Details",
-            "actionUrl": "agent://submit_personal",
-            "styling": {
-              "colorTheme": "pink"
-            }
-          }
-        }
-      ]
+        "name": "full_name",
+        "label": "Contact Person Full Name",
+        "placeholder": "Alex Doe",
+        "inputType": "text"
+      }
     },
     {
-      "type": "container",
+      "type": "input",
       "props": {
-        "className": "flex flex-col"
-      },
-      "children": [
-        {
-          "type": "button",
-          "props": {
-            "label": "Cancel",
-            "actionUrl": "agent://close_widget",
-            "className": "bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg w-full font-medium transition-colors"
-          }
+        "name": "contact_email",
+        "label": "Contact Email Address",
+        "placeholder": "alex@apex.com",
+        "inputType": "text"
+      }
+    },
+    {
+      "type": "button",
+      "props": {
+        "label": "Submit Contact Details",
+        "actionUrl": "agent://submit_personal",
+        "styling": {
+          "colorTheme": "pink"
         }
-      ]
+      }
+    },
+    {
+      "type": "button",
+      "props": {
+        "label": "Cancel",
+        "actionUrl": "agent://close_widget",
+        "styling": {
+          "colorTheme": "slate"
+        }
+      }
     }
   ]
 }

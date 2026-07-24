@@ -5,80 +5,66 @@
   },
   "children": [
     {
-      "type": "container",
+      "type": "input",
       "props": {
-        "className": "flex flex-col gap-4"
-      },
-      "children": [
-        {
-          "type": "input",
-          "props": {
-            "name": "org_name",
-            "label": "Organization Legal Name",
-            "placeholder": "Name",
-            "required": true,
-            "errorMessage": "Organization Legal Name is required"
-          }
-        },
-        {
-          "type": "input",
-          "props": {
-            "name": "org_description",
-            "label": "Brief Description",
-            "placeholder": "Description",
-            "multiline": true,
-            "required": true,
-            "errorMessage": "A brief description of your organization is required"
-          }
-        },
-        {
-          "type": "input",
-          "props": {
-            "name": "org_website",
-            "label": "Organization Website (Optional)",
-            "placeholder": "Website (Optional)",
-            "validationType": "pattern",
-            "pattern": "^$|^[^\\s]+\\.[^\\s]{2,}$",
-            "errorMessage": "Please enter a valid website format (e.g. apex.com or www.apex.com)"
-          }
-        },
-        {
-          "type": "input",
-          "props": {
-            "name": "user_position",
-            "label": "Your Position/Title in Organization",
-            "placeholder": "Position/Title",
-            "required": true,
-            "errorMessage": "Your position/title in the organization is required"
-          }
-        },
-        {
-          "type": "button",
-          "props": {
-            "label": "Submit Details",
-            "actionUrl": "agent://save_org_details",
-            "styling": {
-              "colorTheme": "indigo"
-            }
-          }
-        }
-      ]
+        "name": "org_name",
+        "label": "Organization Legal Name",
+        "placeholder": "Name",
+        "required": true,
+        "errorMessage": "Organization Legal Name is required"
+      }
     },
     {
-      "type": "container",
+      "type": "input",
       "props": {
-        "className": "flex flex-col"
-      },
-      "children": [
-        {
-          "type": "button",
-          "props": {
-            "label": "Cancel",
-            "actionUrl": "agent://close_widget",
-            "className": "bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg w-full font-medium transition-colors"
-          }
+        "name": "org_description",
+        "label": "Brief Description",
+        "placeholder": "Description",
+        "multiline": true,
+        "required": true,
+        "errorMessage": "A brief description of your organization is required"
+      }
+    },
+    {
+      "type": "input",
+      "props": {
+        "name": "org_website",
+        "label": "Organization Website (Optional)",
+        "placeholder": "Website (Optional)",
+        "validationType": "pattern",
+        "pattern": "^$|^[^\\s]+\\.[^\\s]{2,}$",
+        "errorMessage": "Please enter a valid website format (e.g. apex.com or www.apex.com)"
+      }
+    },
+    {
+      "type": "input",
+      "props": {
+        "name": "user_position",
+        "label": "Your Position/Title in Organization",
+        "placeholder": "Position/Title",
+        "required": true,
+        "errorMessage": "Your position/title in the organization is required"
+      }
+    },
+    {
+      "type": "button",
+      "props": {
+        "label": "Submit Details",
+        "actionUrl": "agent://save_org_details",
+        "styling": {
+          "colorTheme": "indigo"
         }
-      ]
+      }
+    },
+    {
+      "type": "button",
+      "props": {
+        "label": "Cancel",
+        "actionUrl": "agent://close_widget",
+        "styling": {
+          "colorTheme": "slate"
+        }
+      }
     }
   ]
 }
