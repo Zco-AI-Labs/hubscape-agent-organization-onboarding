@@ -38,7 +38,7 @@
         "label": "Cancel",
         "actionUrl": "agent://close_widget",
         "styling": {
-          "colorTheme": "slate"
+          "colorTheme": "red"
         }
       }
     }
