@@ -31,6 +31,37 @@ class MockRemoteContext:
         self.session = MagicMock()
         self.session.state = {}
 
+    @property
+    def _db_client(self):
+        client = MagicMock()
+        def get_doc(doc_path):
+            doc = MagicMock()
+            if doc_path == "platform_users/alex@apex.com":
+                doc.exists = True
+                doc.to_dict.return_value = {
+                    "first_name": "Alex",
+                    "last_name": "Doe",
+                    "email": "alex@apex.com",
+                    "phone": "+15550199"
+                }
+            elif doc_path == "platform_users/997075d5-ed5b-4800-8111-a675a87db800":
+                doc.exists = True
+                doc.to_dict.return_value = {
+                    "first_name": "Raj",
+                    "last_name": "Vekeria",
+                    "email": "raj.vekeria@zco.com",
+                    "phone": "+19787293654"
+                }
+            else:
+                doc.exists = False
+            
+            ref = MagicMock()
+            ref.get.return_value = doc
+            return ref
+            
+        client.document = get_doc
+        return client
+
     def get_agent_db_path(self, scope, collection_name, doc_id=None):
         base = f"agents/{self.agent_id}/agent_data/{scope}/{collection_name}"
         if doc_id:
@@ -130,11 +161,14 @@ async def run_tests():
         assert res["status"] == "success"
         auth_org_id = res["org_id"]
         
-        # Verify saved record
+        # Verify saved record is ASSOCIATED with pre-populated user details
         lead = db[f"agents/sales_onboarding_agent/agent_data/platform/leads/{auth_org_id}"]
         assert lead["owner_id"] == "alex@apex.com"
-        assert lead["status"] == "UNVERIFIED"
-        print("✅ Authenticated save_org_details owner_id matches user_id ('alex@apex.com').")
+        assert lead["status"] == "ASSOCIATED"
+        assert lead["contact_name"] == "Alex Doe"
+        assert lead["contact_email"] == "alex@apex.com"
+        assert lead["contact_mobile"] == "+15550199"
+        print("✅ Authenticated save_org_details owner_id matches user_id ('alex@apex.com') and fields are pre-populated.")
 
     # ---------------------------------------------------------
     # Test 3: Check Mobile Exist - Non-existent
@@ -190,25 +224,53 @@ async def run_tests():
         print("✅ check_session returned invalid session for guest user ID.")
 
     # ---------------------------------------------------------
-    # Test 6: Check Session - Authenticated Track
+    # Test 6: Check Session - Authenticated Track (email)
     # ---------------------------------------------------------
-    print("\n--- Test 6: check_session (Authenticated Track) ---")
+    print("\n--- Test 6: check_session (Authenticated Track via email) ---")
     ctx = MockRemoteContext("alex@apex.com")
     with ContextSession(ctx):
-        # Authenticate the unverified lead by associating contact info
-        await submit_personal(
-            full_name="Alex Doe",
-            contact_email="alex@apex.com",
-            org_id=auth_org_id
-        )
-        
         res = await check_session()
         assert res["session_valid"] is True
         assert res["user_data"]["full_name"] == "Alex Doe"
         assert res["user_data"]["email_address"] == "alex@apex.com"
-        assert len(res["user_data"]["linked_organizations"]) == 1
-        assert res["user_data"]["linked_organizations"][0]["org_name"] == "Apex Innovations"
-        print("✅ check_session successfully authenticated session and resolved user details + linked organization by matching owner_id.")
+        assert len(res["user_data"]["linked_organizations"]) == 2
+        assert any(org["org_name"] == "Apex Innovations" for org in res["user_data"]["linked_organizations"])
+        assert any(org["org_name"] == "Apex Bikes" for org in res["user_data"]["linked_organizations"])
+        print("✅ check_session resolved user details from platform_users mock document and matched by email/owner_id/phone.")
+
+    # ---------------------------------------------------------
+    # Test 7: Save Lead & Check Session - Authenticated (UUID)
+    # ---------------------------------------------------------
+    print("\n--- Test 7: Save Lead & Check Session (UUID) ---")
+    await asyncio.sleep(1.1)
+    ctx = MockRemoteContext("997075d5-ed5b-4800-8111-a675a87db800")
+    with ContextSession(ctx):
+        res = await save_org_details(
+            org_name="Raj Vekeria Co",
+            org_description="Software Consultancy",
+            org_website="zco.com",
+            user_position="Lead Architect"
+        )
+        assert res["status"] == "success"
+        uuid_org_id = res["org_id"]
+        
+        # Verify saved record is ASSOCIATED and has correct profile details
+        lead = db[f"agents/sales_onboarding_agent/agent_data/platform/leads/{uuid_org_id}"]
+        assert lead["owner_id"] == "997075d5-ed5b-4800-8111-a675a87db800"
+        assert lead["status"] == "ASSOCIATED"
+        assert lead["contact_name"] == "Raj Vekeria"
+        assert lead["contact_email"] == "raj.vekeria@zco.com"
+        assert lead["contact_mobile"] == "+19787293654"
+        
+        # Check session
+        session_res = await check_session()
+        assert session_res["session_valid"] is True
+        assert session_res["user_data"]["full_name"] == "Raj Vekeria"
+        assert session_res["user_data"]["email_address"] == "raj.vekeria@zco.com"
+        assert session_res["user_data"]["mobile_number"] == "+19787293654"
+        assert len(session_res["user_data"]["linked_organizations"]) == 1
+        assert session_res["user_data"]["linked_organizations"][0]["org_name"] == "Raj Vekeria Co"
+        print("✅ Successfully verified UUID authentication, profile retrieval, lead creation, and session validation.")
 
     print("\n🎉 ALL TESTS PASSED SUCCESSFULLY! The registered_users collection has been cleanly eliminated and owner_id is fully operational.")
 

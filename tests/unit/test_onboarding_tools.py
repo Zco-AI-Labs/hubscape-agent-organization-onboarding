@@ -103,10 +103,24 @@ def mock_db():
             return True
         return False
 
+    mock_client = MagicMock()
+    mock_user_doc = MagicMock()
+    mock_user_doc.exists = True
+    mock_user_doc.to_dict.return_value = {
+        "first_name": "Alex",
+        "last_name": "Doe",
+        "email": "alex@apex.com",
+        "phone": "+15550199"
+    }
+    mock_doc_ref = MagicMock()
+    mock_doc_ref.get.return_value = mock_user_doc
+    mock_client.document.return_value = mock_doc_ref
+
     with patch.object(RemoteContext, "save", new=custom_save), \
          patch.object(RemoteContext, "get", new=custom_get), \
          patch.object(RemoteContext, "list", new=custom_list), \
-         patch.object(RemoteContext, "delete", new=custom_delete):
+         patch.object(RemoteContext, "delete", new=custom_delete), \
+         patch.object(RemoteContext, "_db_client", new=mock_client):
         yield db
 
 @pytest.mark.asyncio
@@ -125,10 +139,49 @@ async def test_save_org_details() -> None:
         
         # Verify saved via context
         leads = ctx.list(scope="platform", collection_name="leads")
-        assert len(leads) == 1
-        assert leads[0]["org_name"] == "Apex Innovations"
-        assert leads[0]["org_website"] == "apex.com"
-        assert leads[0]["status"] == "UNVERIFIED"
+        # Filter out the pre-seeded lead (lead_alex) to check the newly created one
+        new_leads = [l for l in leads if l["id"] == res["org_id"]]
+        assert len(new_leads) == 1
+        assert new_leads[0]["org_name"] == "Apex Innovations"
+        assert new_leads[0]["org_website"] == "apex.com"
+        assert new_leads[0]["status"] == "UNVERIFIED"
+
+@pytest.mark.asyncio
+async def test_save_org_details_authenticated() -> None:
+    # Set up auth context with a standard UUID
+    ctx = RemoteContext(user_id="997075d5-ed5b-4800-8111-a675a87db800")
+    ctx.show_widget = MagicMock()
+    with context_session(ctx):
+        res = await save_org_details(
+            org_name="Apex Robotics",
+            org_description="Making robots",
+            org_website="apexrobotics.com",
+            user_position="CFO"
+        )
+        assert res["status"] == "success"
+        assert "org_id" in res
+        
+        # Verify saved lead details are ASSOCIATED and pre-populated from platform_users
+        leads = ctx.list(scope="platform", collection_name="leads")
+        new_leads = [l for l in leads if l["id"] == res["org_id"]]
+        assert len(new_leads) == 1
+        created_lead = new_leads[0]
+        assert created_lead["org_name"] == "Apex Robotics"
+        assert created_lead["status"] == "ASSOCIATED"
+        assert created_lead["contact_name"] == "Alex Doe"
+        assert created_lead["contact_email"] == "alex@apex.com"
+        assert created_lead["contact_mobile"] == "+15550199"
+        assert created_lead["owner_id"] == "997075d5-ed5b-4800-8111-a675a87db800"
+        
+        # Verify org_summary_card widget was queued instead of mobile_input_widget
+        ctx.show_widget.assert_called_with(
+            "org_summary_card",
+            data={
+                "summary_name": "Apex Robotics",
+                "summary_description": "Making robots",
+                "summary_website": "apexrobotics.com"
+            }
+        )
 
 @pytest.mark.asyncio
 async def test_check_session_valid() -> None:

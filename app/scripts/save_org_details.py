@@ -32,24 +32,46 @@ async def save_org_details(
     org_id = f"lead_{int(time.time())}"
     
     user_id = ctx.auth.get_user_id()
+    
+    # Determine if user is authenticated/verified or guest (checking for 28-char alphanumeric Firebase guest UIDs)
+    import re
     is_authenticated = bool(
         user_id
         and not user_id.startswith("guest")
         and not user_id.startswith("anonymous")
         and user_id not in ("dummy_user", "default_user", "dev-user-123")
+        and not (len(user_id) == 28 and re.match(r"^[A-Za-z0-9]+$", user_id))
     )
     owner_id = user_id if is_authenticated else "anonymous"
     
+    contact_email = None
+    contact_mobile = None
+    contact_name = None
+    
+    if is_authenticated:
+        try:
+            user_doc = ctx._db_client.document(f"platform_users/{user_id}").get()
+            if user_doc.exists:
+                user_data = user_doc.to_dict() or {}
+                contact_email = user_data.get("email")
+                contact_mobile = user_data.get("phone")
+                
+                first_name = user_data.get("first_name") or ""
+                last_name = user_data.get("last_name") or ""
+                contact_name = f"{first_name} {last_name}".strip() or None
+        except Exception as e:
+            print(f"⚠️ [USER PROFILE RETRIEVAL WARNING] Failed to fetch platform_user details: {e}")
+            
     lead_data = {
         "id": org_id,
         "org_name": org_name,
         "org_description": org_description,
         "org_website": website_clean,
         "user_position": user_position,
-        "status": "UNVERIFIED",
-        "contact_email": None,
-        "contact_mobile": None,
-        "contact_name": None,
+        "status": "ASSOCIATED" if is_authenticated else "UNVERIFIED",
+        "contact_email": contact_email,
+        "contact_mobile": contact_mobile,
+        "contact_name": contact_name,
         "owner_id": owner_id
     }
     
@@ -60,15 +82,40 @@ async def save_org_details(
         data=lead_data
     )
 
+    if is_authenticated:
+        try:
+            alert_id = f"alert_{int(time.time())}"
+            alert_msg = f"New unverified lead has arrived for organization '{org_name}'."
+            ctx.save(
+                scope="platform",
+                collection_name="sales_alerts",
+                doc_id=alert_id,
+                data={
+                    "lead_id": org_id,
+                    "message": alert_msg,
+                    "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
+                }
+            )
+        except Exception as e:
+            print(f"⚠️ [ALERT WARNING] Failed to create sales alert: {e}")
+
     # Save generated ID to session state for multi-turn access
     if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
         ctx.session.state["active_org_id"] = org_id
 
-    # Queue rendering the mobile input widget for phone identity verification
+    # Queue rendering the appropriate widget based on auth track
     try:
-        ctx.show_widget("mobile_input_widget")
+        if is_authenticated:
+            summary_data = {
+                "summary_name": org_name,
+                "summary_description": org_description,
+                "summary_website": website_clean
+            }
+            ctx.show_widget("org_summary_card", data=summary_data)
+        else:
+            ctx.show_widget("mobile_input_widget")
     except Exception as e:
-        print(f"⚠️ [WIDGET QUEUE WARNING] Failed to queue mobile input widget: {e}")
+        print(f"⚠️ [WIDGET QUEUE WARNING] Failed to queue widget: {e}")
 
     return {
         "status": "success",

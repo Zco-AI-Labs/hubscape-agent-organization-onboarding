@@ -29,6 +29,7 @@ async def check_session() -> dict:
         is_valid = False
     else:
         # Fallback to standard user_id check
+        import re
         is_valid = bool(
             user_id 
             and not user_id.startswith("guest") 
@@ -36,6 +37,7 @@ async def check_session() -> dict:
             and not user_id == "dummy_user" 
             and not user_id == "default_user" 
             and not user_id == "dev-user-123"
+            and not (len(user_id) == 28 and re.match(r"^[A-Za-z0-9]+$", user_id))
         )
 
     if is_valid:
@@ -52,7 +54,23 @@ async def check_session() -> dict:
         full_name = user_id
         email_address = user_id if "@" in user_id else ""
         mobile_number = user_id if not "@" in user_id else ""
+        
+        # Try to resolve user's real name, email, and mobile from platform_users/{user_id}
+        try:
+            user_doc = ctx._db_client.document(f"platform_users/{user_id}").get()
+            if user_doc.exists:
+                user_data = user_doc.to_dict() or {}
+                email_address = user_data.get("email") or email_address
+                mobile_number = user_data.get("phone") or mobile_number
+                
+                first_name = user_data.get("first_name") or ""
+                last_name = user_data.get("last_name") or ""
+                full_name = f"{first_name} {last_name}".strip() or full_name
+        except Exception as e:
+            print(f"⚠️ [USER PROFILE RETRIEVAL WARNING] Failed to fetch platform_user details: {e}")
+
         clean_user_id = normalize_phone(user_id)
+        clean_mobile_number = normalize_phone(mobile_number)
 
         linked_orgs = []
         leads = ctx.list(scope="platform", collection_name="leads")
@@ -67,6 +85,8 @@ async def check_session() -> dict:
             elif lead_email and email_address and lead_email.strip().lower() == email_address.strip().lower():
                 is_match = True
             elif lead_mobile and clean_user_id and normalize_phone(lead_mobile) == clean_user_id:
+                is_match = True
+            elif lead_mobile and clean_mobile_number and normalize_phone(lead_mobile) == clean_mobile_number:
                 is_match = True
                 
             if is_match:

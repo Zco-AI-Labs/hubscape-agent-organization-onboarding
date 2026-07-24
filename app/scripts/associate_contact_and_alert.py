@@ -68,11 +68,13 @@ async def associate_contact_and_alert(
     
     # Set owner_id to user_id if authenticated; otherwise keep/set it as "anonymous"
     user_id = ctx.auth.get_user_id()
+    import re
     is_authenticated = bool(
         user_id
         and not user_id.startswith("guest")
         and not user_id.startswith("anonymous")
         and user_id not in ("dummy_user", "default_user", "dev-user-123")
+        and not (len(user_id) == 28 and re.match(r"^[A-Za-z0-9]+$", user_id))
     )
     if is_authenticated:
         lead["owner_id"] = user_id
