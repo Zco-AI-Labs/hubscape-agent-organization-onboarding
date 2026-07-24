@@ -90,6 +90,9 @@ class MockRemoteContext:
     def show_widget(self, widget_id, data=None):
         print(f"-> Show Widget called for '{widget_id}'")
 
+    def close_widget(self, result_text=None):
+        print(f"-> Close Widget called with result_text='{result_text}'")
+
 # Monkeypatch hubscape_adk context getters
 current_ctx = None
 
@@ -118,6 +121,7 @@ from app.scripts.submit_personal import submit_personal
 from app.scripts.associate_contact_and_alert import associate_contact_and_alert
 from app.scripts.check_session import check_session
 from app.scripts.check_mobile_exist import check_mobile_exist
+from app.scripts.close_widget import close_widget
 
 async def run_tests():
     global db
@@ -271,6 +275,16 @@ async def run_tests():
         assert len(session_res["user_data"]["linked_organizations"]) == 1
         assert session_res["user_data"]["linked_organizations"][0]["org_name"] == "Raj Vekeria Co"
         print("✅ Successfully verified UUID authentication, profile retrieval, lead creation, and session validation.")
+
+    # ---------------------------------------------------------
+    # Test 8: Close Widget - Cancel button flow
+    # ---------------------------------------------------------
+    print("\n--- Test 8: close_widget (Cancel Flow) ---")
+    ctx = MockRemoteContext("guest_user_123")
+    with ContextSession(ctx):
+        res = await close_widget()
+        assert res["status"] == "success"
+        print("✅ Successfully verified close_widget execution and host closing request.")
 
     print("\n🎉 ALL TESTS PASSED SUCCESSFULLY! The registered_users collection has been cleanly eliminated and owner_id is fully operational.")
 

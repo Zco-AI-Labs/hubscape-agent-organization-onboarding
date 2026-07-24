@@ -51,6 +51,16 @@
           "colorTheme": "blue"
         }
       }
+    },
+    {
+      "type": "button",
+      "props": {
+        "label": "Cancel",
+        "actionUrl": "agent://close_widget",
+        "styling": {
+          "colorTheme": "slate"
+        }
+      }
     }
   ]
 }
