@@ -2,6 +2,7 @@ import os
 import json
 import time
 import datetime
+import re
 from app.core.hubscape_adk import get_context, require_tool_privilege
 
 @require_tool_privilege
@@ -21,7 +22,6 @@ async def associate_contact_and_alert(
         contact_mobile: Personal mobile number collected/retrieved.
         full_name: Full name of the contact (optional).
     """
-    import re
     email_pattern = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
     if not re.match(email_pattern, contact_email.strip()):
         return {
@@ -68,7 +68,6 @@ async def associate_contact_and_alert(
     
     # Set owner_id to user_id if authenticated; otherwise keep/set it as "anonymous"
     user_id = ctx.auth.get_user_id()
-    import re
     is_authenticated = bool(
         user_id
         and not user_id.startswith("guest")

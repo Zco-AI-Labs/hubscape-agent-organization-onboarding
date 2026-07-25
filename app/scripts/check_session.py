@@ -1,5 +1,6 @@
 import os
 import json
+import re
 from app.core.hubscape_adk import get_context, require_tool_privilege
 
 @require_tool_privilege
@@ -29,7 +30,6 @@ async def check_session() -> dict:
         is_valid = False
     else:
         # Fallback to standard user_id check
-        import re
         is_valid = bool(
             user_id 
             and not user_id.startswith("guest") 

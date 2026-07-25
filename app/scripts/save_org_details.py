@@ -2,6 +2,7 @@ import os
 import json
 import time
 import datetime
+import re
 from app.core.hubscape_adk import get_context, require_tool_privilege
 
 @require_tool_privilege
@@ -34,7 +35,6 @@ async def save_org_details(
     user_id = ctx.auth.get_user_id()
     
     # Determine if user is authenticated/verified or guest (checking for 28-char alphanumeric Firebase guest UIDs)
-    import re
     is_authenticated = bool(
         user_id
         and not user_id.startswith("guest")

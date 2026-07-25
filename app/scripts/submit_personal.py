@@ -59,7 +59,6 @@ async def submit_personal(
 
     # Update owner_id if the user is authenticated in this session
     user_id = ctx.auth.get_user_id()
-    import re
     is_authenticated = bool(
         user_id
         and not user_id.startswith("guest")
