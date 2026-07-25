@@ -457,6 +457,7 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
                             "resultText": payload.get("resultText") or "✅ Widget closed."
                         },
                         "actions": [action],
+                        "text": interceptor.accumulated_text or "Widget closed.",
                         "message": interceptor.accumulated_text or "Widget closed."
                     }
                     break
