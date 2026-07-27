@@ -7,9 +7,9 @@ from app.core.hubscape_adk import get_context, require_tool_privilege
 
 @require_tool_privilege
 async def associate_contact_and_alert(
-    org_id: str,
-    contact_email: str,
-    contact_mobile: str,
+    org_id: str = None,
+    contact_email: str = None,
+    contact_mobile: str = None,
     full_name: str = ""
 ) -> dict:
     """
@@ -22,17 +22,41 @@ async def associate_contact_and_alert(
         contact_mobile: Personal mobile number collected/retrieved.
         full_name: Full name of the contact (optional).
     """
+    ctx = get_context()
+    if (not org_id or org_id.strip() == "") and hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
+        org_id = ctx.session.state.get("active_org_id", "")
+
+    if not org_id:
+        return {"status": "error", "message": "Error: Could not resolve active Organization ID."}
+
+    # Find lead
+    lead = ctx.get(scope="platform", collection_name="leads", doc_id=org_id)
+    if not lead:
+        return {"status": "error", "message": f"Lead record {org_id} not found."}
+
+    resolved_email = contact_email.strip() if contact_email else lead.get("contact_email") or ""
+    resolved_name = full_name.strip() if full_name else lead.get("contact_name") or ""
+    resolved_mobile = contact_mobile
+    if not resolved_mobile and hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
+        resolved_mobile = ctx.session.state.get("pending_mobile") or ctx.session.state.get("verified_mobile") or ""
+
+    if not resolved_mobile:
+        return {
+            "status": "error",
+            "message": "Error: Contact mobile number is missing."
+        }
+
     email_pattern = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
-    if not re.match(email_pattern, contact_email.strip()):
+    if not re.match(email_pattern, resolved_email):
         return {
             "status": "error",
             "message": "Invalid contact email format. Please provide a valid email address (e.g. name@domain.com)."
         }
         
-    clean_phone = "".join(filter(str.isdigit, contact_mobile))
+    clean_phone = "".join(filter(str.isdigit, resolved_mobile))
     has_country = True
     if len(clean_phone) >= 10:
-        has_country = contact_mobile.strip().startswith('+')
+        has_country = resolved_mobile.strip().startswith('+')
         
     if not (len(clean_phone) >= 10 or len(clean_phone) in (7, 8)) or not has_country:
         return {
@@ -40,15 +64,6 @@ async def associate_contact_and_alert(
             "message": "Invalid contact mobile format. Please include your country code starting with '+' (e.g. +919876543210 or +15550199000)."
         }
 
-    ctx = get_context()
-    if (not org_id or org_id.strip() == "") and hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
-        org_id = ctx.session.state.get("active_org_id", "")
-
-    # Find lead
-    lead = ctx.get(scope="platform", collection_name="leads", doc_id=org_id)
-    if not lead:
-        return {"status": "error", "message": f"Lead record {org_id} not found."}
-        
     def normalize_phone(num: str) -> str:
         """
         Helper to normalize formatting by extracting digits and stripping country codes.
@@ -58,12 +73,12 @@ async def associate_contact_and_alert(
             clean = clean[1:]
         return clean
 
-    clean_mobile = normalize_phone(contact_mobile)
+    clean_mobile = normalize_phone(resolved_mobile)
 
     # Update lead details
-    lead["contact_email"] = contact_email
+    lead["contact_email"] = resolved_email
     lead["contact_mobile"] = clean_mobile
-    lead["contact_name"] = full_name or lead.get("contact_name") or "New User"
+    lead["contact_name"] = resolved_name or lead.get("contact_name") or "New User"
     lead["status"] = "ASSOCIATED"
     
     # Set owner_id to user_id if authenticated; otherwise keep/set it as "anonymous"

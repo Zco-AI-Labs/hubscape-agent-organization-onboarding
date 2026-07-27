@@ -8,15 +8,18 @@ from app.core.hubscape_adk import get_context, require_tool_privilege
 async def submit_personal(
     full_name: str,
     contact_email: str,
+    mobile_number: str = None,
     org_id: str = None
 ) -> dict:
     """
-    Saves the user's personal details (full name and email) to the specified lead record,
-    sets its status to ASSOCIATED, and queues the organization summary card.
+    Saves the user's personal details (full name and email) to the specified lead record.
+    If mobile_number is provided, it stores it in session state as pending and triggers the OTP flow.
+    Otherwise, sets status to ASSOCIATED and displays the summary card (compatibility fallback).
 
     Args:
         full_name: Contact person's full name.
         contact_email: Contact person's email address.
+        mobile_number: Personal mobile number to verify.
         org_id: The ID of the saved organization lead record.
     """
     email_pattern = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
@@ -38,46 +41,118 @@ async def submit_personal(
         
     org_id = resolved_org_id
 
-    if not org_id:
+    # If mobile_number is provided, check if it's an existing user checking status
+    is_existing_user = False
+    if mobile_number:
+        clean_phone = "".join(filter(str.isdigit, mobile_number))
+        has_country = True
+        if len(clean_phone) >= 10:
+            has_country = mobile_number.strip().startswith('+')
+            
+        if not (len(clean_phone) >= 10 or len(clean_phone) in (7, 8)) or not has_country:
+            return {
+                "status": "error",
+                "message": "Invalid mobile number format. Please include your country code starting with '+' (e.g. +919876543210 or +15550199000)."
+            }
+            
+        def normalize_phone(num: str) -> str:
+            clean = "".join(filter(str.isdigit, num))
+            if (len(clean) == 11 or len(clean) == 8) and clean.startswith("1"):
+                clean = clean[1:]
+            return clean
+        
+        input_num = normalize_phone(mobile_number)
+        
+        # Check leads to see if user has already entered their contact info under this number
+        leads = ctx.list(scope="platform", collection_name="leads")
+        matching_lead = None
+        for lead in leads:
+            lead_num = normalize_phone(lead.get("contact_mobile") or "")
+            if lead_num == input_num:
+                matching_lead = lead
+                break
+                
+        if matching_lead:
+            is_existing_user = True
+            org_id = matching_lead.get("id")
+            if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
+                ctx.session.state["active_org_id"] = org_id
+                ctx.session.state["pending_mobile"] = mobile_number
+
+    if not org_id and not is_existing_user:
         return {
             "status": "error",
             "message": "Error: Could not resolve active Organization ID for this session."
         }
         
-    # Retrieve existing lead record
-    lead = ctx.get(scope="platform", collection_name="leads", doc_id=org_id)
-    if not lead:
+    lead = None
+    if org_id:
+        # Retrieve existing lead record
+        lead = ctx.get(scope="platform", collection_name="leads", doc_id=org_id)
+        
+    if not lead and not is_existing_user:
         return {
             "status": "error",
             "message": f"Lead record {org_id} not found."
         }
 
-    # Update contact details and set status to ASSOCIATED
-    lead["contact_email"] = contact_email.strip()
-    lead["contact_name"] = full_name.strip()
-    lead["status"] = "ASSOCIATED"
+    if lead:
+        # Update contact details (except mobile, which is verified later)
+        lead["contact_email"] = contact_email.strip()
+        lead["contact_name"] = full_name.strip()
+        
+        if not mobile_number:
+            lead["status"] = "ASSOCIATED"
+        else:
+            # Keep as UNVERIFIED if mobile OTP is pending
+            lead["status"] = "UNVERIFIED"
 
-    # Update owner_id if the user is authenticated in this session
-    user_id = ctx.auth.get_user_id()
-    is_authenticated = bool(
-        user_id
-        and not user_id.startswith("guest")
-        and not user_id.startswith("anonymous")
-        and user_id not in ("dummy_user", "default_user", "dev-user-123")
-        and not (len(user_id) == 28 and re.match(r"^[A-Za-z0-9]+$", user_id))
-    )
-    if is_authenticated:
-        lead["owner_id"] = user_id
-    elif lead.get("owner_id") is None:
-        lead["owner_id"] = "anonymous"
+        # Update owner_id if the user is authenticated in this session
+        user_id = ctx.auth.get_user_id()
+        is_authenticated = bool(
+            user_id
+            and not user_id.startswith("guest")
+            and not user_id.startswith("anonymous")
+            and user_id not in ("dummy_user", "default_user", "dev-user-123")
+            and not (len(user_id) == 28 and re.match(r"^[A-Za-z0-9]+$", user_id))
+        )
+        if is_authenticated:
+            lead["owner_id"] = user_id
+        elif lead.get("owner_id") is None:
+            lead["owner_id"] = "anonymous"
 
-    ctx.save(scope="platform", collection_name="leads", doc_id=org_id, data=lead)
+        ctx.save(scope="platform", collection_name="leads", doc_id=org_id, data=lead)
 
-    # Queue rendering the summary card widget
+    # Save mobile number in session state & trigger OTP if provided
+    if mobile_number:
+        if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
+            ctx.session.state["pending_mobile"] = mobile_number
+            
+        # Send OTP
+        try:
+            res = ctx.send_otp(mobile_number)
+            if not res.get("success"):
+                print(f"⚠️ Live OTP dispatch returned non-success: {res.get('message')}. Falling back to dev code 123456.")
+        except Exception as e:
+            print(f"⚠️ Live OTP dispatch exception ({e}). Falling back to dev code 123456.")
+            
+        # Show OTP verify widget
+        try:
+            ctx.show_widget("otp_verify_widget")
+        except Exception as w_err:
+            print(f"⚠️ [WIDGET QUEUE WARNING] Failed to queue OTP verify widget: {w_err}")
+            
+        return {
+            "status": "success",
+            "org_id": org_id,
+            "message": f"Contact details saved. Verification code dispatched to {mobile_number}."
+        }
+
+    # Queue rendering the summary card widget (for old fallback / no mobile cases)
     summary_data = {
-        "summary_name": lead.get("org_name"),
-        "summary_description": lead.get("org_description"),
-        "summary_website": lead.get("org_website")
+        "summary_name": lead.get("org_name") if lead else "",
+        "summary_description": lead.get("org_description") if lead else "",
+        "summary_website": lead.get("org_website") if lead else ""
     }
     try:
         ctx.show_widget("org_summary_card", data=summary_data)
@@ -87,5 +162,5 @@ async def submit_personal(
     return {
         "status": "success",
         "org_id": org_id,
-        "message": f"Contact details successfully associated for organization '{lead.get('org_name')}'."
+        "message": f"Contact details successfully associated for organization '{lead.get('org_name') if lead else ''}'."
     }

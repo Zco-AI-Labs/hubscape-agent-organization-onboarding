@@ -12,7 +12,6 @@ from app.scripts.send_mobile_otp import send_mobile_otp
 from app.scripts.verify_mobile_otp import verify_mobile_otp
 from app.scripts.associate_contact_and_alert import associate_contact_and_alert
 from app.scripts.show_org_details_form import show_org_details_form
-from app.scripts.show_mobile_input_widget import show_mobile_input_widget
 from app.scripts.show_otp_verify_widget import show_otp_verify_widget
 from app.scripts.show_personal_details_widget import show_personal_details_widget
 from app.scripts.show_contact_form import show_contact_form
@@ -407,10 +406,6 @@ async def test_show_widget_tools() -> None:
         ctx.show_widget.assert_called_with("org_details_form")
         assert res1["status"] == "success"
 
-        res2 = await show_mobile_input_widget()
-        ctx.show_widget.assert_called_with("mobile_input_widget")
-        assert res2["status"] == "success"
-
         res3 = await show_otp_verify_widget()
         ctx.show_widget.assert_called_with("otp_verify_widget")
         assert res3["status"] == "success"
@@ -492,5 +487,52 @@ async def test_submit_personal_fallback() -> None:
         assert lead["contact_name"] == "Alex Doe"
         assert lead["contact_email"] == "alex@apex.com"
         assert lead["status"] == "ASSOCIATED"
+
+@pytest.mark.asyncio
+async def test_submit_personal_combined_flow() -> None:
+    ctx = RemoteContext(user_id="guest_user")
+    ctx.show_widget = MagicMock()
+    # Create mock session object
+    class MockSession:
+        def __init__(self):
+            self.state = {}
+    ctx.session = MockSession()
+    
+    with context_session(ctx):
+        # 1. Save org details first
+        org_res = await save_org_details("Apex Pizza", "Best Pizza", "apex.com", "Manager")
+        org_id = org_res["org_id"]
+        
+        # 2. Submit combined personal & mobile details
+        res = await submit_personal("Alex Doe", "alex@apex.com", "555-9999", org_id)
+        assert res["status"] == "success"
+        
+        # 3. Verify lead email & name are saved, status is UNVERIFIED
+        lead = ctx.get(scope="platform", collection_name="leads", doc_id=org_id)
+        assert lead["contact_name"] == "Alex Doe"
+        assert lead["contact_email"] == "alex@apex.com"
+        assert lead["status"] == "UNVERIFIED"
+        # Mobile number should NOT be saved to the database yet
+        assert lead.get("contact_mobile") is None
+        
+        # 4. Verify mobile is held in session state
+        assert ctx.session.state["pending_mobile"] == "555-9999"
+        
+        # 5. Verify otp_verify_widget is queued
+        ctx.show_widget.assert_any_call("otp_verify_widget")
+        
+        # 6. Verify completing OTP and associate contact
+        assoc_res = await associate_contact_and_alert(
+            org_id=org_id,
+            contact_email="alex@apex.com",
+            contact_mobile="",  # Left empty to test fallback to session state
+            full_name="Alex Doe"
+        )
+        assert assoc_res["status"] == "success"
+        
+        # 7. Verify lead now has mobile saved and status is ASSOCIATED
+        lead_final = ctx.get(scope="platform", collection_name="leads", doc_id=org_id)
+        assert lead_final["contact_mobile"] == "5559999"
+        assert lead_final["status"] == "ASSOCIATED"
 
 

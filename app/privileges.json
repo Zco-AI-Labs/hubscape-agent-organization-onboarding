@@ -11,7 +11,6 @@
         "verify_mobile_otp",
         "associate_contact_and_alert",
         "show_org_details_form",
-        "show_mobile_input_widget",
         "show_otp_verify_widget",
         "show_personal_details_widget",
         "show_contact_form",
