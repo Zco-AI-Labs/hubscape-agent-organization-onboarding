@@ -15,7 +15,7 @@
       }
     },
     {
-      "type": "input",
+      "type": "textarea",
       "props": {
         "name": "org_description",
         "label": "Brief Description",
