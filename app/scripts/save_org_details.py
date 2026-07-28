@@ -103,9 +103,6 @@ async def save_org_details(
     if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
         ctx.session.state["active_org_id"] = org_id
 
-    # Close the current details form widget programmatically
-    ctx.close_widget(result_text=f"Organization '{org_name}' details successfully saved.")
-
     # Queue rendering the appropriate widget based on auth track
     try:
         if is_authenticated:
