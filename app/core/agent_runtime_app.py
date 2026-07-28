@@ -448,19 +448,6 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
                         "message": interceptor.accumulated_text or "Displaying agent widget."
                     }
                     break
-                elif atype == "CLOSE_AGENT_WIDGET":
-                    directive_payload = {
-                        "directive": "execute_host_tool",
-                        "target_tool": "closeAgentWidget",
-                        "parameters": {
-                            "messageId": payload.get("messageId"),
-                            "resultText": payload.get("resultText") or "✅ Widget closed."
-                        },
-                        "actions": [action],
-                        "text": interceptor.accumulated_text or "Widget closed.",
-                        "message": interceptor.accumulated_text or "Widget closed."
-                    }
-                    break
                 elif atype == "OPEN_ADMIN_WIDGET":
                     directive_payload = {
                         "directive": "execute_host_tool",

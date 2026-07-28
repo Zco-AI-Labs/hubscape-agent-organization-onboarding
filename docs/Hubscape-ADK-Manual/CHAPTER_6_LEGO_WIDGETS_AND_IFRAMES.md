@@ -73,12 +73,27 @@ window.addEventListener('message', (event) => {
 
 ---
 
-## 4. Programmatic Widget Closing
+## 4. Widget Closing Protocols (`client://` vs `agent://`)
 
-Custom tools can request that the host application close an active Lego widget (or iframe panel) directly from Python.
+Lego widgets support dual-channel closure: pure client-side UI actions and agent-driven programmatic closures.
 
-### The `close_widget` Method on `RemoteContext`:
-Inside a Python tool, call `context.close_widget()` to return a structured close action to the host:
+### Option A: Pure Client-Side Button Action (`client://close_widget`)
+Use `client://close_widget` (or `client://dismiss`) for cancel, close, or dismiss buttons in Lego JSON widget schemas. This unmounts the widget 100% locally on the browser with **zero network requests** and zero Host LLM calls:
+
+```json
+{
+  "type": "button",
+  "props": {
+    "label": "Cancel",
+    "actionUrl": "client://close_widget?text=Form+cancelled",
+    "styling": { "colorTheme": "slate" }
+  }
+}
+```
+
+### Option B: Agent-Initiated Tool Closure (`context.close_widget()`)
+For buttons with `agent://<action_name>`, the button submits data to the backend host agent. Inside a Python tool, call `context.close_widget()` to save state and instruct the client UI to unmount:
+
 ```python
 from app.core.hubscape_adk import get_context
 
@@ -94,7 +109,7 @@ async def submit_and_close_form(data: str) -> dict:
     return {"status": "success"}
 ```
 
-This appends the `CLOSE_AGENT_WIDGET` action to the client response:
+This appends the `CLOSE_AGENT_WIDGET` action directive to the response payload:
 ```json
 {
   "type": "CLOSE_AGENT_WIDGET",
