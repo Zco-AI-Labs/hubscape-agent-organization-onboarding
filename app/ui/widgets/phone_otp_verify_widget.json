@@ -1,0 +1,56 @@
+{
+  "type": "container",
+  "props": {
+    "className": "flex flex-col gap-4 p-4 bg-white rounded-lg border border-blue-200"
+  },
+  "children": [
+    {
+      "type": "input",
+      "props": {
+        "name": "mobile_number",
+        "label": "Personal Contact Mobile Number",
+        "placeholder": "+15550199000",
+        "inputType": "text"
+      }
+    },
+    {
+      "type": "button",
+      "props": {
+        "label": "Send Verification Code",
+        "actionUrl": "agent://send_mobile_otp?skip_widget=true",
+        "styling": {
+          "colorTheme": "blue"
+        }
+      }
+    },
+    {
+      "type": "input",
+      "props": {
+        "name": "otp_code",
+        "label": "Enter 6-digit Verification Code",
+        "placeholder": "123456",
+        "inputType": "text"
+      }
+    },
+    {
+      "type": "button",
+      "props": {
+        "label": "Verify & View Status",
+        "actionUrl": "agent://verify_otp_and_fetch_status",
+        "styling": {
+          "colorTheme": "green"
+        }
+      }
+    },
+    {
+      "type": "button",
+      "props": {
+        "label": "Cancel",
+        "actionUrl": "client://close_widget?text=Verification+cancelled",
+        "styling": {
+          "colorTheme": "slate"
+        }
+      }
+    }
+  ]
+}

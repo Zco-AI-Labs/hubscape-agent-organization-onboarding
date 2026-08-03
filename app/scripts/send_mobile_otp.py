@@ -3,12 +3,13 @@ import json
 from app.core.hubscape_adk import get_context, require_tool_privilege
 
 @require_tool_privilege
-async def send_mobile_otp(mobile_number: str) -> dict:
+async def send_mobile_otp(mobile_number: str, skip_widget: bool = False) -> dict:
     """
     Triggers sending a 6-digit OTP verification code to the user's personal mobile number.
 
     Args:
         mobile_number: The personal mobile number to verify (e.g. 555-0199).
+        skip_widget: Whether to skip rendering the verification code entry widget.
     """
     clean_phone = "".join(filter(str.isdigit, mobile_number))
     has_country = True
@@ -30,10 +31,11 @@ async def send_mobile_otp(mobile_number: str) -> dict:
         print(f"⚠️ Live OTP dispatch exception ({e}). Falling back to dev code 123456.")
         
     # Queue rendering the OTP verify widget for code entry
-    try:
-        ctx.show_widget("otp_verify_widget")
-    except Exception as w_err:
-        print(f"⚠️ [WIDGET QUEUE WARNING] Failed to queue OTP verify widget: {w_err}")
+    if not skip_widget:
+        try:
+            ctx.show_widget("otp_verify_widget")
+        except Exception as w_err:
+            print(f"⚠️ [WIDGET QUEUE WARNING] Failed to queue OTP verify widget: {w_err}")
 
     return {
         "status": "success",

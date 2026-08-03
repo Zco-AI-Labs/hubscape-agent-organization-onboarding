@@ -16,6 +16,8 @@ from app.scripts.show_otp_verify_widget import show_otp_verify_widget
 from app.scripts.show_personal_details_widget import show_personal_details_widget
 from app.scripts.show_contact_form import show_contact_form
 from app.scripts.submit_personal import submit_personal
+from app.scripts.verify_otp_and_fetch_status import verify_otp_and_fetch_status
+from app.scripts.show_phone_otp_verify_widget import show_phone_otp_verify_widget
 
 # Mock default GCP credentials and project settings
 os.environ["GOOGLE_CLOUD_PROJECT"] = "dummy-project"
@@ -312,8 +314,9 @@ async def test_save_org_details_empty_website() -> None:
         assert "org_id" in res
         
         leads = ctx.list(scope="platform", collection_name="leads")
-        assert len(leads) == 1
-        assert leads[0]["org_website"] == ""
+        new_leads = [l for l in leads if l["id"] == res["org_id"]]
+        assert len(new_leads) == 1
+        assert new_leads[0]["org_website"] == ""
 
 @pytest.mark.asyncio
 async def test_associate_contact_invalid_email() -> None:
@@ -428,7 +431,7 @@ async def test_submit_personal_success() -> None:
         org_id = org_res["org_id"]
         
         # 2. Submit personal details
-        res = await submit_personal("Alex Doe", "alex@apex.com", org_id)
+        res = await submit_personal("Alex Doe", "alex@apex.com", org_id=org_id)
         assert res["status"] == "success"
         
         # 3. Verify lead document is updated
@@ -456,7 +459,7 @@ async def test_submit_personal_invalid_email() -> None:
 async def test_submit_personal_not_found() -> None:
     ctx = RemoteContext(user_id="guest_user")
     with context_session(ctx):
-        res = await submit_personal("Alex Doe", "alex@apex.com", "nonexistent_org_id")
+        res = await submit_personal("Alex Doe", "alex@apex.com", org_id="nonexistent_org_id")
         assert res["status"] == "error"
         assert "Lead record nonexistent_org_id not found" in res["message"]
 
@@ -534,5 +537,56 @@ async def test_submit_personal_combined_flow() -> None:
         lead_final = ctx.get(scope="platform", collection_name="leads", doc_id=org_id)
         assert lead_final["contact_mobile"] == "5559999"
         assert lead_final["status"] == "ASSOCIATED"
+
+
+@pytest.mark.asyncio
+async def test_verify_otp_and_fetch_status_success() -> None:
+    ctx = RemoteContext(user_id="guest_user")
+    class MockSession:
+        def __init__(self):
+            self.state = {}
+    ctx.session = MockSession()
+    with context_session(ctx):
+        # 1. Save org details
+        org_res = await save_org_details("Test Org", "Desc", "test.com", "CEO")
+        org_id = org_res["org_id"]
+        
+        # 2. Associate contact with unverified mobile number
+        await associate_contact_and_alert(
+            org_id=org_id,
+            contact_email="test@test.com",
+            contact_mobile="+15550199000",
+            full_name="Test User"
+        )
+        
+        # 3. Verify OTP and fetch statuses
+        res = await verify_otp_and_fetch_status("+15550199000", "123456")
+        assert res["status"] == "success"
+        assert res["message"] == "Identity verified successfully."
+        assert len(res["linked_organizations"]) > 0
+        assert res["linked_organizations"][0]["org_name"] == "Test Org"
+        assert res["linked_organizations"][0]["status"] == "ASSOCIATED"
+        
+        # 4. Check that verified_mobile is stored in session state
+        assert ctx.session.state["verified_mobile"] == "+15550199000"
+
+
+@pytest.mark.asyncio
+async def test_verify_otp_and_fetch_status_invalid_otp() -> None:
+    ctx = RemoteContext(user_id="guest_user")
+    with context_session(ctx):
+        res = await verify_otp_and_fetch_status("+15550199000", "wrong_code")
+        assert res["status"] == "error"
+        assert "Invalid verification code" in res["message"]
+
+
+@pytest.mark.asyncio
+async def test_show_phone_otp_verify_widget() -> None:
+    ctx = RemoteContext(user_id="guest_user")
+    ctx.show_widget = MagicMock()
+    with context_session(ctx):
+        await show_phone_otp_verify_widget()
+        ctx.show_widget.assert_called_once_with("phone_otp_verify_widget")
+
 
 
