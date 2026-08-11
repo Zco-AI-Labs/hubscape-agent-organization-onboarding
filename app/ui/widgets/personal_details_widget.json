@@ -23,7 +23,7 @@
       }
     },
     {
-      "type": "input",
+      "type": "phone",
       "props": {
         "name": "mobile_number",
         "label": "Personal Contact Mobile Number",
