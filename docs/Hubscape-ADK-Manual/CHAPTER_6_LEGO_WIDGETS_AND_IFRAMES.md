@@ -168,5 +168,5 @@ For live-monitored tasks or background streams, render a `live-error-banner` ele
 
 ---
 
-[Next Chapter: Advanced Integrations](CHAPTER_7_ADVANCED_INTEGRATIONS.md) | [Previous Chapter: Sandbox Emulation](CHAPTER_5_SANDBOX_EMULATION.md)
+[Next Chapter: OAuth Integration & Hubscape ADK API](CHAPTER_7_OAUTH_INTEGRATION_AND_ADK_API.md) | [Previous Chapter: Sandbox Emulation](CHAPTER_5_SANDBOX_EMULATION.md)
 

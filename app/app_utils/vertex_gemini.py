@@ -153,13 +153,26 @@ class VertexGemini(Gemini):
         client = self.api_client
 
         if stream:
-            # Delegate streaming generation to a thread
-            responses = await asyncio.to_thread(
-                client.models.generate_content_stream,
-                model=llm_request.model,
-                contents=llm_request.contents,
-                config=llm_request.config,
-            )
+            # Delegate streaming generation to a thread with 429 exponential backoff retry
+            max_retries = 3
+            backoff = 2.0
+            for attempt in range(max_retries):
+                try:
+                    responses = await asyncio.to_thread(
+                        client.models.generate_content_stream,
+                        model=llm_request.model,
+                        contents=llm_request.contents,
+                        config=llm_request.config,
+                    )
+                    break
+                except Exception as e:
+                    err_str = str(e)
+                    if ("429" in err_str or "RESOURCE_EXHAUSTED" in err_str) and attempt < max_retries - 1:
+                        logger.warning(f"⚠️ Vertex AI 429 Rate Limit encountered (streaming). Retrying in {backoff}s... (Attempt {attempt + 1}/{max_retries})")
+                        await asyncio.sleep(backoff)
+                        backoff *= 2.0
+                    else:
+                        raise e
 
             aggregator = StreamingResponseAggregator()
             
@@ -189,13 +202,26 @@ class VertexGemini(Gemini):
                 yield close_result
 
         else:
-            # Delegate non-streaming call to a thread
-            response = await asyncio.to_thread(
-                client.models.generate_content,
-                model=llm_request.model,
-                contents=llm_request.contents,
-                config=llm_request.config,
-            )
+            # Delegate non-streaming call to a thread with 429 exponential backoff retry
+            max_retries = 3
+            backoff = 2.0
+            for attempt in range(max_retries):
+                try:
+                    response = await asyncio.to_thread(
+                        client.models.generate_content,
+                        model=llm_request.model,
+                        contents=llm_request.contents,
+                        config=llm_request.config,
+                    )
+                    break
+                except Exception as e:
+                    err_str = str(e)
+                    if ("429" in err_str or "RESOURCE_EXHAUSTED" in err_str) and attempt < max_retries - 1:
+                        logger.warning(f"⚠️ Vertex AI 429 Rate Limit encountered. Retrying in {backoff}s... (Attempt {attempt + 1}/{max_retries})")
+                        await asyncio.sleep(backoff)
+                        backoff *= 2.0
+                    else:
+                        raise e
             logger.info('Response received from the model.')
             if logger.isEnabledFor(logging.DEBUG):
                 logger.debug(_build_response_log(response))

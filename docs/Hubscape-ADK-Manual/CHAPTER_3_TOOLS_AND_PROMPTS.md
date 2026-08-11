@@ -78,7 +78,30 @@ GEAP and sandboxed ADK containers run in secure isolated environments. **Inbound
 
 ## 4. Workspace Scope & Tool Filtering (`@tool_scope`)
 
-To enforce secure routing and minimize model context overhead, the Hubscape ADK filters which tools are exposed to Gemini at runtime using workspace scope annotations and user privilege checks.
+Tools can be scoped to specific workspace types using `@tool_scope`:
+```python
+@tool_scope("hub")
+async def hub_only_tool():
+    ...
+```
+
+---
+
+## 5. Google Grounding & Search Architecture Rules (`google_search`, `google_maps`)
+
+When building GEAP agents that use Google Search Grounding (`google_search`) or Google Maps Grounding (`google_maps`):
+
+1. **Tool Isolation Requirement (No Mixed Tool Payloads)**:  
+   Google Cloud Vertex AI REST API (`generateContent`) forbids combining built-in Google Grounding extension tools (`google_search`, `google_maps`) with custom Python function declarations (e.g., `search_knowledge`, `create_todo`) in the SAME request payload. Passing both together results in `google.genai.errors.ClientError: 400 INVALID_ARGUMENT ("Multiple tools are supported only when they are all search tools")`.
+
+2. **Dedicated Agent Architecture (Recommended Pattern)**:  
+   Build separate, single-purpose agents rather than mixing RAG retrieval and web search into a single agent:
+   * **RAG Agents** (`knowledge_agent`): Implement custom function declarations (`search_knowledge`) for searching organizational documents and scraped corpora. Set `"allow_web_search": false` in `app/config.json`.
+   * **Web/Search Agents** (`web_search_agent`): Use `google_search` or `google_maps` as their primary native tools. Set `"allow_web_search": true` in `app/config.json`.
+
+3. **Orchestrator Routing**:  
+   `host_agent` routes document/policy/file lookups to RAG agents, and routes live web queries, location, and navigation requests to specialized search agents.
+ADK filters which tools are exposed to Gemini at runtime using workspace scope annotations and user privilege checks.
 
 ### The `@tool_scope` Decorator:
 By default, all tools registered in `app/scripts/` are available in both Hub and Organization scopes. To restrict a tool to specific workspace scopes, decorate your tool function with `@tool_scope` from `app.core.hubscape_adk`:

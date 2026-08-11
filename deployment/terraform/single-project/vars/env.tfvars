@@ -1,5 +1,5 @@
 # Project name used for resource naming
-project_name = "custom-agent"
+project_name = "app"
 
 # Your Google Cloud project id
 project_id = "your-gcp-project-id"

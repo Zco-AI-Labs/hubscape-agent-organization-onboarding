@@ -11,7 +11,7 @@ A complete Hubscape Agent repository consists of the following file arrangement:
 ```text
 my_agent_project/
 ├── pyproject.toml              # REQUIRED: Python dependencies and metadata (workspace root)
-├── config.json                 # REQUIRED: Developer-defined custom manifest parameters
+├── deploy_config.json           # REQUIRED: Developer-defined custom manifest parameters
 ├── agents-cli-manifest.yaml    # REQUIRED: Deployment configurations (updated dynamically by deploy.py)
 ├── Dockerfile                  # NEW: Container build specification for FastAPI app
 └── app/                        # REQUIRED: Ingested agent package directory
@@ -47,7 +47,7 @@ The Hubscape deployment pipeline enforces the **Pure Agent Principle**:
 ## 3. Package Configurations
 
 * **`pyproject.toml`:** Declares dependencies using the modern `uv` manager. Do not write custom shell installation logic; all packages must be listed in `pyproject.toml` to build successfully.
-* **`config.json`:** A git-tracked configuration file containing developer-defined custom parameters (under `create_params` nested in `"agents-cli-manifest"`). This file is preserved when `hubscape-adk -u` runs (which overwrites `agents-cli-manifest.yaml` with the default template). During deployment, `deploy.py` merges `config.json` parameters back into `agents-cli-manifest.yaml`.
+* **`deploy_config.json`:** A git-tracked configuration file containing developer-defined custom parameters (under `create_params` nested in `"agents-cli-manifest"`). This file is preserved when `hubscape-adk -u` runs (which overwrites `agents-cli-manifest.yaml` with the default template). During deployment, `deploy.py` merges `deploy_config.json` parameters back into `agents-cli-manifest.yaml`.
 * **`agents-cli-manifest.yaml`:** Mapped at creation time to establish options like:
   * `agent_directory: "app"`
   * `base_template: "adk"`

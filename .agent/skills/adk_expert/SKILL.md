@@ -9,7 +9,11 @@ You are the Hubscape ADK Integration Specialist. Your primary mission is to assi
 
 ## 🛡️ The Prime Directive: Sandboxing
 > [!CAUTION]
-> **STAY IN THE SANDBOX**: You are strictly prohibited from modifying core platform files when tasked with building a new agent. All agent package code, logic, configuration, and API routes MUST be contained entirely within `app/`.
+> **STAY IN THE SANDBOX**: You are strictly prohibited from modifying core platform files when tasked with building a new agent. All agent package code, logic, characteristics configuration (`app/config.json`), and API routes MUST be contained entirely within the `app/` directory.
+> 
+> *Note on Configuration separation*: 
+> - Root-level `deploy_config.json` is strictly reserved for deployment options (`create_params` for `agents-cli deploy`).
+> - Agent characteristics (MCP servers, OAuth connections, Google Maps toggle, Google Search toggle) are configured inside the `app/config.json` file.
 
 ## 📖 Mandatory Reference
 Before building or modifying any agent, you MUST review the official ADK documentation:
@@ -17,15 +21,22 @@ Before building or modifying any agent, you MUST review the official ADK documen
 2. [UI_ELEMENTS.md](file://docs/UI_ELEMENTS.md) - The official catalog of supported Lego UI elements, properties, and layouts.
 
 ## 📐 The Architecture of a Hubscape Agent
-Every agent is structured as a Python package inside the `app/` directory:
+Every agent project is structured with files partitioned between the workspace root directory and the `app/` package directory:
 
-1. **`app/agent.py` (Required)**: Entry point that instantiates `google.adk.agents.Agent` and registers tools. Configure agent name and description here.
-2. **`app/SKILL.md` (Required)**: Defines the system instructions.
-3. **`app/scripts/` (Required)**: Python scripts implementing individual tool handlers.
-4. **`pyproject.toml` (Required)**: Package dependencies and python configurations.
-   - **Automated Configuration Naming Sync:** You only need to set the `name` argument of `AdkAgent` in `app/agent.py`. The deployment script (`deploy.py`) automatically synchronizes this name across all static configuration files (manifests, packaging, lockfiles, Skill files, and Terraform configurations) during deployment.
-5. **`config.json` (Required)**: Stores developer-defined custom parameters (under `create_params` nested in `"agents-cli-manifest"`). This file is git-tracked and preserved when `hubscape-adk -u` runs (which overwrites `agents-cli-manifest.yaml` with the default template). During deployment, `deploy.py` merges `config.json` parameters back into `agents-cli-manifest.yaml`.
-6. **`app/__init__.py` (Required)**: Exposes the app singleton:
+### Workspace Root Files
+1. **`deploy_config.json` (Required)**: Stores developer-defined custom parameters (under `create_params` nested in `"agents-cli-manifest"`). This file is git-tracked and preserved when `hubscape-adk -u` runs. During deployment, `deploy.py` merges `deploy_config.json` parameters back into `agents-cli-manifest.yaml`.
+2. **`pyproject.toml` (Required)**: Package dependencies and python configurations.
+3. **`agents-cli-manifest.yaml` (Required)**: Deployment configurations.
+4. **`deploy.py` (Required)**: Configuration sync, name synchronization, and deploy wrapper.
+5. **`Dockerfile` (Required)**: Container setup.
+6. 
+
+### Agent Package Directory (`app/`)
+6. **`app/config.json` (Required)**: Stores agent-specific characteristics (remote MCP servers, OAuth connections, and feature toggles like `google_search` or `google_maps`). Unlike `deploy_config.json`, this configuration resides inside the `app/` folder so it's packaged within the sandbox.
+7. **`app/agent.py` (Required)**: Entry point that instantiates `google.adk.agents.Agent` and registers tools. Configure agent name and description here. It loads custom servers and toggles from `app/config.json`.
+8. **`app/SKILL.md` (Required)**: Defines the system instructions (Single Source of Truth).
+9. **`app/scripts/` (Required)**: Python scripts implementing individual tool handlers.
+10. **`app/__init__.py` (Required)**: Exposes the app singleton:
    ```python
    from .agent import app
    __all__ = ["app"]
@@ -83,7 +94,8 @@ Always prefer using the high-level Firestore scope CRUD helpers:
 ---
 
 ## 🔌 Model Context Protocol (MCP) & Agent-to-Agent (A2A) Connections
-* **Programmatic MCP Calls:** Invoke using the context client:
+* **Standard MCP Servers (Direct Model Tooling):** Register remote MCP servers in `app/config.json` under `mcp_servers` with `openid_configuration` and dynamic headers (e.g., `"${OAUTH_TOKEN:provider}"`). In `app/agent.py`, the static loading block parses this config to auto-discover, whitelist, and present remote tools directly to the Gemini LLM.
+* **Programmatic MCP Calls:** If you need to manually invoke an MCP tool from custom Python logic, use `context.mcp`:
     ```python
     await context.mcp.call_tool(
         agent_id=context.auth.agent_id,

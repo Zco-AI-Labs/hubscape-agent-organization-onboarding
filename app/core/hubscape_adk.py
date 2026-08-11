@@ -398,24 +398,15 @@ class RemoteContext:
             raise RuntimeError(f"OTP verification request failed: {resp.text}")
         return resp.json()
 
-    def get_agent_token(self, token_name: str) -> Optional[dict]:
-        """Retrieves stored integration token credentials for the user."""
-        return self.get(scope="user", collection_name="tokens", doc_id=token_name)
-
-    def save_agent_token(self, token_name: str, data: dict) -> dict:
-        """Saves integration token credentials for the user."""
-        return self.save(scope="user", collection_name="tokens", doc_id=token_name, data=data)
-
     async def get_oauth_token(self, provider: str) -> Optional[str]:
         """
-        Gets the active oauth access token, performing a token refresh if expired.
+        Gets the active oauth access token, triggering a platform refresh if expired.
         """
-        token_data = self.get_agent_token(provider)
+        token_data = self.get(scope="user", collection_name="tokens", doc_id=provider)
         if not token_data:
             return None
 
         access_token = token_data.get("access_token")
-        refresh_token = token_data.get("refresh_token")
         expires_at_str = token_data.get("expires_at")
 
         # Check if expired or about to expire in the next 60 seconds
@@ -429,64 +420,35 @@ class RemoteContext:
             except Exception:
                 is_expired = True
 
-        # Perform token refresh if expired and we have a refresh token
-        if is_expired and refresh_token:
-            client_id = os.getenv(f"{provider.upper()}_CLIENT_ID")
-            client_secret = os.getenv(f"{provider.upper()}_CLIENT_SECRET")
-
-            # Fallback configuration endpoints if not defined on platform
-            token_urls = {
-                "github": "https://github.com/login/oauth/access_token",
-                "google": "https://oauth2.googleapis.com/token",
-                "jira": "https://auth.atlassian.com/oauth/token",
-                "slack": "https://slack.com/api/oauth.v2.access"
-            }
-            token_url = token_urls.get(provider)
-
-            if client_id and client_secret and token_url:
-                payload = {
-                    "client_id": client_id,
-                    "client_secret": client_secret,
-                    "refresh_token": refresh_token,
-                    "grant_type": "refresh_token"
-                }
-                headers = {"Accept": "application/json"}
-                try:
-                    async with httpx.AsyncClient() as client:
-                        resp = await client.post(token_url, data=payload, headers=headers, timeout=10.0)
-                        if resp.status_code == 200:
-                            token_resp = resp.json()
-                            refreshed_data = {
-                                "access_token": token_resp.get("access_token"),
-                                "refresh_token": token_resp.get("refresh_token", refresh_token),
-                                "expires_in": token_resp.get("expires_in"),
-                                "token_type": token_resp.get("token_type", "Bearer"),
-                                "scope": token_resp.get("scope", token_data.get("scope", ""))
-                            }
-                            # Calculate new expiration datetime
-                            if "expires_in" in token_resp:
-                                exp = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=int(token_resp["expires_in"]))
-                                refreshed_data["expires_at"] = exp.isoformat()
-                                
-                            self.save_agent_token(provider, refreshed_data)
-                            return refreshed_data.get("access_token")
-                except Exception as e:
-                    logger.warning(f"Failed to refresh expired OAuth token for {provider}: {e}")
+        # Delegate token refresh to the platform by appending a REFRESH_TOKEN action
+        if is_expired:
+            if {
+                "type": "REFRESH_TOKEN",
+                "payload": {"provider": provider, "agent_id": self.agent_id}
+            } not in self.actions:
+                self.actions.append({
+                    "type": "REFRESH_TOKEN",
+                    "payload": {
+                        "provider": provider,
+                        "agent_id": self.agent_id
+                    }
+                })
+            return None
 
         return access_token
 
-    def trigger_oauth_flow(self, provider: str, redirect_back: Optional[str] = None) -> dict:
-        """Triggers local mock OAuth authentication challenge payload."""
+
+    def oauth_start(self, openid_configuration: str) -> dict:
+        """Triggers the platform OAuth authentication challenge payload."""
         return {
             "status": "error",
-            "message": f"Authorization required for {provider}.",
+            "message": "Authorization required.",
             "error_type": "AUTH_REQUIRED",
             "system_action": {
                 "type": "TRIGGER_OAUTH",
                 "payload": {
-                    "provider": provider,
-                    "agent_id": self.agent_id,
-                    "redirect_back": redirect_back
+                    "openid_configuration": openid_configuration,
+                    "agent_id": self.agent_id
                 }
             }
         }
@@ -773,8 +735,8 @@ def filter_tools_for_scope(*args, **kwargs):
         if org_id is None and len(args) > 2:
             org_id = args[2]
             
-        if org_id is not None:
-            is_org_scope = (hub_id == org_id) or (not hub_id) or (hub_id == "platform")
+        if org_id is not None and org_id != "unknown-org":
+            is_org_scope = (org_id and hub_id == org_id) or (not hub_id) or (hub_id == "platform")
             active_scope = "org" if is_org_scope else "hub"
         else:
             wtype = hub_id or "hub"
@@ -805,4 +767,107 @@ def filter_tools_for_scope(*args, **kwargs):
             logging.info(f"[adk]   Kept {tool_name}")
             filtered.append(tool)
         return filtered
+
+
+async def resolve_mcp_tools(agent, context):
+    """
+    Asynchronously resolves headers for MCP tools and applies access control filtering.
+    For each tool in the agent's tool list:
+      - If it is an McpToolset instance (having _mcp_server_name):
+        - Dynamically resolve header placeholder values like ${OAUTH_TOKEN:provider}
+        - Construct a new request-scoped McpToolset connection
+        - Fetch list of accessible tools from context metadata and configure tool_filter
+        - Replace the tool in the agent's tool list
+    """
+    try:
+        from google.adk.tools.mcp_tool.mcp_toolset import McpToolset, StreamableHTTPConnectionParams
+    except ImportError:
+        # If mcp is not installed/imported, do nothing
+        return agent
+
+    import re
+    placeholder_pattern = re.compile(r"\$\{([^}]+)\}")
+
+    resolved_tools = []
+    for tool in agent.tools:
+        if hasattr(tool, "_mcp_server_name"):
+            server_name = tool._mcp_server_name
+            raw_headers = getattr(tool, "_mcp_raw_headers", {})
+            url = tool.connection_params.url
+            
+            # 1. Resolve header placeholders (e.g. ${OAUTH_TOKEN:github} or ${MY_SECRET})
+            resolved_headers = None
+            if raw_headers:
+                resolved_headers = {}
+                for key, val in raw_headers.items():
+                    if isinstance(val, str):
+                        matches = placeholder_pattern.findall(val)
+                        resolved_val = val
+                        for ph in matches:
+                            if ph.startswith("OAUTH_TOKEN:"):
+                                provider = ph.split(":", 1)[1]
+                                token_val = await context.get_oauth_token(provider)
+                                resolved_val = resolved_val.replace(f"${{{ph}}}", token_val or "")
+                            else:
+                                secret_val = os.environ.get(ph) or context.raw_context.get("secrets", {}).get(ph, "")
+                                resolved_val = resolved_val.replace(f"${{{ph}}}", secret_val)
+                        resolved_headers[key] = resolved_val
+                    else:
+                        resolved_headers[key] = val
+            
+            # 2. Get tool whitelisting filter from privileges.json
+            tool_filter = None
+            user_privileges = getattr(context, "user_privileges", [])
+            if user_privileges:
+                priv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "privileges.json")
+                if not os.path.exists(priv_path):
+                    priv_path = "privileges.json"
+                if os.path.exists(priv_path):
+                    try:
+                        import json
+                        with open(priv_path, "r") as pf:
+                            priv_data = json.load(pf)
+                        privileges_config = priv_data.get("privileges", {})
+                        allowed_tools = []
+                        for priv_id in user_privileges:
+                            priv_info = privileges_config.get(str(priv_id)) or {}
+                            tools_list = priv_info.get("tools") or []
+                            allowed_tools.extend(tools_list)
+                        if allowed_tools:
+                            tool_filter = allowed_tools
+                    except Exception as read_err:
+                        import logging
+                        logging.getLogger(__name__).warning(f"⚠️ Failed to read/parse privileges.json for MCP tool filtering: {read_err}")
+            
+            # Fallback to accessible_tools metadata if privileges didn't yield anything
+            if not tool_filter:
+                accessible_tools = context.raw_context.get("accessible_tools", {})
+                if isinstance(accessible_tools, dict):
+                    tool_filter = accessible_tools.get(server_name)
+                elif isinstance(accessible_tools, list):
+                    tool_filter = accessible_tools
+            
+            # 3. Create a fresh request-scoped McpToolset
+            try:
+                kwargs = {"url": url}
+                if resolved_headers is not None:
+                    kwargs["headers"] = resolved_headers
+                connection_params = StreamableHTTPConnectionParams(**kwargs)
+                
+                request_toolset = McpToolset(
+                    connection_params=connection_params,
+                    tool_filter=tool_filter
+                )
+                request_toolset._mcp_server_name = server_name
+                request_toolset._mcp_raw_headers = raw_headers
+                resolved_tools.append(request_toolset)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Failed to resolve request-scoped MCP toolset for '{server_name}': {e}")
+                resolved_tools.append(tool)
+        else:
+            resolved_tools.append(tool)
+            
+    agent.tools = resolved_tools
+    return agent
 

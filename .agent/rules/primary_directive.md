@@ -7,10 +7,11 @@
 ## 1. Scope Containment & Pure Agent Principle
 To ensure clean deployment and ingestion by the Hubscape platform, this repository follows the **Pure Agent Principle**:
 * Only modify the core files accepted by the GitOps ingestion pipeline:
-  * `config.json` (At root: Metadata, RBAC permissions, UI settings, Secrets declarations)
+  * `deploy_config.json` (At root: Metadata, RBAC permissions, UI settings, Secrets declarations)
   * `app/` package folder:
     * `__init__.py` (Standard initialization exposing the `root_agent`)
     * `agent.py` (LlmAgent and app wrapper setup)
+    * `config.json` (Agent characteristic configurations: MCP, OAuth, search/maps toggles)
     * `SKILL.md` (Contains LLM instructions/prompts)
     * `scripts/` (Contains standalone Python tool scripts)
     * `static/` (Contains local static HTML/CSS/images/iframes)
@@ -20,14 +21,16 @@ To ensure clean deployment and ingestion by the Hubscape platform, this reposito
 
 ## 2. Model Context Protocol (MCP) & Agent-to-Agent (A2A) Connections
 Custom agents must route all external connections and tool calls through the standardized platform interfaces:
-* **Programmatic MCP Calls:** When manually calling tools from whitelisted `mcp_servers` in Python logic, load the configuration relative to the agent folder dynamically and invoke using the context tool client:
+* **Standard MCP Servers (Direct Model Tooling):** Register remote MCP servers in `app/config.json` under `mcp_servers` with the `openid_configuration` and dynamic headers (e.g. `"${OAUTH_TOKEN:provider}"`). In `app/agent.py`, load these servers statically using `McpToolset` so that the tools are auto-discovered, whitelisted, and presented directly to the Gemini LLM.
+* **Programmatic MCP Calls:** When manually calling tools from whitelisted `mcp_servers` in custom Python logic, load the configuration dynamically and invoke using the context tool client:
   ```python
   import os
   import json
 
-  # Load config.json dynamically
-  agent_dir = os.path.dirname(os.path.abspath(__file__))
-  with open(os.path.join(agent_dir, "..", "..", "config.json"), "r") as f:
+  # Load app/config.json dynamically (relative to app/scripts/ tool script)
+  script_dir = os.path.dirname(os.path.abspath(__file__))
+  app_dir = os.path.dirname(script_dir)
+  with open(os.path.join(app_dir, "config.json"), "r") as f:
       config = json.load(f)
   
   mcp_config = config.get("mcp_servers", {}).get("server_key")

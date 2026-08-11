@@ -27,12 +27,13 @@ We use a segregated, decoupled directory layout (the staged standard) for settin
 
 ```text
 my-agent/
-├── config.json              # REQUIRED: Developer-defined custom manifest parameters
+├── deploy_config.json       # REQUIRED: Developer-defined custom manifest parameters
 ├── agents-cli-manifest.yaml # REQUIRED: agents-cli manifest (updated dynamically by deploy.py)
 ├── deploy.py               # REQUIRED: Subprocess wrapper to run agents-cli deploy
 ├── pyproject.toml          # REQUIRED: uv dependency manager configuration
 └── app/                    # REQUIRED: Agent directory containing python code
     ├── __init__.py         # REQUIRED: Package initialization
+    ├── config.json         # REQUIRED: Agent characteristic configurations (MCP, OAuth, search/maps toggles)
     ├── agent.py            # REQUIRED: Main agent class conforming to Vertex AI Reasoning Engine SDK
     ├── agent_runtime_app.py # REQUIRED: Entry point loaded by Agent Runtime
     ├── hubscape_adk.py     # REQUIRED: Lightweight context/DB adapter (copied verbatim)
@@ -288,7 +289,7 @@ my_special_agent_app = MySpecialAgent()
 ### 2. Packaging and Deploying (`deploy.py`)
 Deploying an agent as a Vertex AI Reasoning Engine involves a script that calls the containerized `agents-cli deploy` command.
 
-To prevent developer-defined parameters under the `create_params` block in `agents-cli-manifest.yaml` from being overwritten when running template updates (`hubscape-adk -u`), custom options must be defined in `config.json` in the root of the repository:
+To prevent developer-defined parameters under the `create_params` block in `agents-cli-manifest.yaml` from being overwritten when running template updates (`hubscape-adk -u`), custom options must be defined in `deploy_config.json` in the root of the repository:
 
 ```json
 {
@@ -306,7 +307,7 @@ To prevent developer-defined parameters under the `create_params` block in `agen
 }
 ```
 
-Below are three examples of how different agents are configured using different parameter values in `config.json`:
+Below are three examples of how different agents are configured using different parameter values in `deploy_config.json`:
 
 #### Example 1: Knowledge Agent (RAG Corpus Datastore)
 ```json
@@ -358,7 +359,7 @@ Below are three examples of how different agents are configured using different 
 }
 ```
 
-We use a standard root-level `deploy.py` script that acts as a wrapper. It automatically merges the parameters from `config.json` into `agents-cli-manifest.yaml` before running the `agents-cli deploy` command via a subprocess:
+We use a standard root-level `deploy.py` script that acts as a wrapper. It automatically merges the parameters from `deploy_config.json` into `agents-cli-manifest.yaml` before running the `agents-cli deploy` command via a subprocess:
 
 ```python
 import os
@@ -571,21 +572,36 @@ GEAP agents read, write, and delete documents within Firestore using a scoping p
 
 ## 🛠️ Model Context Protocol (MCP) Integration
 * **No Monolithic Tool Registry:** We no longer manage local MCP server processes or a monolithic `ToolRegistry` on the backend.
-* **Implementation:** If a GEAP agent requires tool capability from an MCP server, either convert those MCP tools into standard Python functions inside the agent's `scripts/` folder, or write an outbound HTTP/SSE client within a tool in `scripts/` that connects to a hosted remote MCP server.
+* **Implementation via McpToolset (Standard):** Register the remote MCP server in `app/config.json` under `mcp_servers` with an `openid_configuration` and dynamic headers (e.g. `"Authorization": "Bearer ${OAUTH_TOKEN:provider}"`). In `app/agent.py`, load the server statically using `McpToolset`. The central platform and sandbox will automatically manage OAuth connections, refresh expired tokens, filter whitelisted tools, and expose them directly to the Gemini LLM.
+* **Outbound HTTP/SSE Fallback:** If you need to make custom programmatic connections, write a Python tool script that uses an HTTP client to communicate with the remote server.
 
 ---
 
-## 🔍 Google Search Grounding (Websearch)
-* **Legacy Toggle:** The Firestore-based `allow_web_search` toggle is decommissioned.
-* **Option A (Native Grounding):** To enable native Google Search grounding, add the `GoogleSearchRetrieval` tool directly to your agent's config inside `agent.py`:
-  ```python
-  from vertexai.preview.generative_models import Tool, grounding
-  google_search_tool = Tool.from_google_search_retrieval(grounding.GoogleSearchRetrieval())
-  # Append to your tools configuration
-  root_agent.tools = load_local_tools(scripts_dir) + [google_search_tool]
+## 🔍 Google Search Grounding & Google Maps Grounding
+* **`app/config.json` Toggles & Keyword Triggers**: Set `"allow_web_search": true` or `"allow_google_maps": true` in `app/config.json`. Optionally specify `"grounding_keywords"` to restrict grounding triggers to specific user inquiry terms:
+  ```json
+  {
+    "allow_web_search": false,
+    "allow_google_maps": false,
+    "grounding_keywords": ["distance", "drive", "route", "travel time"]
+  }
   ```
-  Ensure `google-cloud-aiplatform` is specified in your `pyproject.toml` dependencies.
-* **Option B (Custom Tool):** Write a custom search function tool inside `scripts/web_search.py` that queries custom search engines or scrapers, returning formatted results.
+  * **If `grounding_keywords` is set**: Grounding activates only when spatial location context is attached or user question contains any of the specified keywords (e.g. `knowledge-agent` restricting web search to distance/travel time queries).
+  * **If `grounding_keywords` is `[]` or omitted**: Grounding is active on all turns when toggles are enabled.
+  `app/agent.py` automatically resolves these toggles and injects `from google.adk.tools import google_search, google_maps_grounding`.
+
+* **Architectural Guidelines (When to Use Which)**:
+  - **`allow_web_search: true` (Recommended for Navigation & Factual Queries)**:
+    - **Use For**: Real-time web intelligence, factual Q&A, box office schedules, news, and **all general navigation queries** (calculating driving distance in miles, travel times, highway routes, and transit directions).
+    - **Why**: Google Search Grounding calculates travel times and driving distances from address strings with 100% reliability.
+  - **`allow_google_maps: true` (Reserved for Dedicated Spatial/Place Agents)**:
+    - **Use For**: Geo-spatial place discovery, business details (ratings, opening hours, phone numbers, exact place IDs), and finding nearby amenities relative to coordinates (*"Find 3 nearby coffee shops or parking garages"*).
+    - **Why**: Google Maps Grounding is designed for place entity lookups and map pin rendering. **Do NOT use `allow_google_maps` for general driving distance or travel time Q&A.**
+
+* **Native ADK Tools**:
+  - Web Search: `from google.adk.tools import google_search` (`GoogleSearchTool`)
+  - Google Maps: `from google.adk.tools import google_maps_grounding` (`GoogleMapsGroundingTool`)
+* **Dual Spatial Context**: When location context is supplied (`user_location`, `hub_location`), `GEAPAgentWrapper` automatically formats a `[SPATIAL & LOCATION CONTEXT]` instruction header for Gemini models and A2A subagent calls.
 
 ---
 

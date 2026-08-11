@@ -101,14 +101,55 @@ class GEAPAgentWrapper:
                 org_id=org_id
             )
             
+            # Resolve remote MCP headers and access control whitelists asynchronously
+            cloned_agent = await hubscape_adk.resolve_mcp_tools(cloned_agent, remote_ctx)
+            
             raw_mode = (context or {}).get("interaction_mode") or (context or {}).get("mode") or "chat_pc"
             normalized_mode = "chat_pc" if raw_mode == "chat_phone" else raw_mode
+            spatial_lines = []
+            user_loc = (context or {}).get("user_location") or (context or {}).get("userLocation")
+            if user_loc:
+                if isinstance(user_loc, dict):
+                    lat = user_loc.get("latitude") or user_loc.get("lat")
+                    lng = user_loc.get("longitude") or user_loc.get("lng")
+                    lbl = user_loc.get("label") or user_loc.get("address") or user_loc.get("city") or ""
+                    if lbl and not (str(lat) in str(lbl) and str(lng) in str(lbl)):
+                        loc_str = f"{lbl} (Latitude: {lat}, Longitude: {lng})"
+                    elif lat and lng:
+                        loc_str = f"Latitude {lat}, Longitude {lng}"
+                    else:
+                        loc_str = str(lbl or user_loc)
+                    spatial_lines.append(f"📍 User Live Location: {loc_str}")
+                elif isinstance(user_loc, str):
+                    spatial_lines.append(f"📍 User Live Location: {user_loc}")
+            
+            hub_loc = (context or {}).get("hub_location") or (context or {}).get("hubLocation") or (context or {}).get("workspace_location")
+            if hub_loc:
+                if isinstance(hub_loc, dict):
+                    lat = hub_loc.get("latitude") or hub_loc.get("lat")
+                    lng = hub_loc.get("longitude") or hub_loc.get("lng")
+                    lbl = hub_loc.get("label") or hub_loc.get("address") or hub_loc.get("name") or ""
+                    if lbl and lat and lng:
+                        loc_str = f"{lbl} (Latitude: {lat}, Longitude: {lng})"
+                    elif lat and lng:
+                        loc_str = f"Latitude {lat}, Longitude {lng}"
+                    else:
+                        loc_str = str(lbl or hub_loc)
+                    spatial_lines.append(f"🏢 Active Workspace Location: {loc_str}")
+                elif isinstance(hub_loc, str):
+                    spatial_lines.append(f"🏢 Active Workspace Location: {hub_loc}")
+
+            spatial_context = ""
+            if spatial_lines:
+                spatial_context = "\n[SPATIAL & LOCATION CONTEXT]\n" + "\n".join(spatial_lines) + "\n"
+
             session_context = (
                 f"[ACTIVE WORKSPACE CONTEXT]\n"
                 f"- Interaction Mode: {normalized_mode}\n"
                 f"- Workspace Type: {workspace_type}\n"
                 f"- Workspace ID: {workspace_id or 'none'}\n"
                 f"- Organization ID: {org_id or 'none'}\n"
+                f"{spatial_context}"
             )
             base_instruction = self.agent.instruction or ""
             cloned_agent.instruction = f"{session_context}\n{base_instruction}"
@@ -124,8 +165,23 @@ class GEAPAgentWrapper:
                 auto_create_session=True
             )
             
+            turn_prompt = question
+            turn_prefix = ""
+            if spatial_context:
+                turn_prefix += f"{spatial_context.strip()}\n"
+            use_grounding = any(getattr(t, "name", getattr(t, "__name__", "")) == "google_maps_grounding" for t in cloned_agent.tools)
+            if use_grounding:
+                turn_prefix += (
+                    "[LIVE GROUNDING & NAVIGATION DIRECTIVE]\n"
+                    "You are explicitly authorized to use your Google Maps tool to provide real-time directions, "
+                    "driving/transit distances, travel times, and local routing relative to the user's live location "
+                    "and workspace location. Do not refuse distance or mapping queries.\n\n"
+                )
+            if turn_prefix:
+                turn_prompt = f"{turn_prefix}{question}"
+
             new_message = types.Content(
-                parts=[types.Part.from_text(text=question)]
+                parts=[types.Part.from_text(text=turn_prompt)]
             )
             
             # Ensure active session object is created and linked to remote_ctx on Turn 1:

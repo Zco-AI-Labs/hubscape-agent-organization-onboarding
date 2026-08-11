@@ -204,7 +204,7 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
             workspace_id = org_id if is_org_scope else hub_id
 
         # Concurrency-safe dynamic tool filtering based on workspace scope and user privileges
-        from app.core.hubscape_adk import filter_tools_for_scope
+        from app.core.hubscape_adk import filter_tools_for_scope, resolve_mcp_tools
         cloned_agent = filter_tools_for_scope(
             agent=base_runner.agent,
             user_privileges=remote_ctx.user_privileges,
@@ -212,6 +212,9 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
             workspace_id=workspace_id,
             org_id=org_id
         )
+        
+        # Resolve remote MCP headers and access control whitelists asynchronously
+        cloned_agent = await resolve_mcp_tools(cloned_agent, remote_ctx)
         
         base_instruction = base_runner.agent.instruction or ""
         
@@ -487,6 +490,17 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
                             "url": payload.get("url")
                         },
                         "message": interceptor.accumulated_text or "Opening link."
+                    }
+                    break
+                elif atype == "REFRESH_TOKEN":
+                    directive_payload = {
+                        "directive": "execute_host_tool",
+                        "target_tool": "refreshToken",
+                        "parameters": {
+                            "provider": payload.get("provider"),
+                            "agent_id": payload.get("agent_id")
+                        },
+                        "message": "Refreshing authentication token..."
                     }
                     break
                 elif atype == "END_CALL":
