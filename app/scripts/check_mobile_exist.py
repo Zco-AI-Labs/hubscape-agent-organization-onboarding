@@ -55,7 +55,7 @@ async def check_mobile_exist(mobile_number: str) -> dict:
             if lead_num == input_num or (lead.get("contact_email") and lead.get("contact_email") == user.get("email_address")):
                 linked_orgs.append({
                     "org_name": lead.get("org_name"),
-                    "status": lead.get("status")
+                    "status": lead.get("sales_status") or "OPEN"
                 })
         
         primary_org = linked_orgs[0] if linked_orgs else None

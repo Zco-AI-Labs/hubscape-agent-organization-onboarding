@@ -92,7 +92,7 @@ async def check_session() -> dict:
             if is_match:
                 linked_orgs.append({
                     "org_name": lead.get("org_name"),
-                    "status": lead.get("status")
+                    "status": lead.get("sales_status") or "OPEN"
                 })
                 # Populate user contact details from the matching lead if we don't have them yet
                 if lead_email:

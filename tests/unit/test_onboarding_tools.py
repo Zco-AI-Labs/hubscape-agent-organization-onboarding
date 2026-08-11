@@ -565,10 +565,43 @@ async def test_verify_otp_and_fetch_status_success() -> None:
         assert res["message"] == "Identity verified successfully."
         assert len(res["linked_organizations"]) > 0
         assert res["linked_organizations"][0]["org_name"] == "Test Org"
-        assert res["linked_organizations"][0]["status"] == "ASSOCIATED"
+        assert res["linked_organizations"][0]["status"] == "OPEN"
         
         # 4. Check that verified_mobile is stored in session state
         assert ctx.session.state["verified_mobile"] == "+15550199000"
+
+
+@pytest.mark.asyncio
+async def test_verify_otp_and_fetch_status_sales_status_override() -> None:
+    ctx = RemoteContext(user_id="guest_user")
+    class MockSession:
+        def __init__(self):
+            self.state = {}
+    ctx.session = MockSession()
+    with context_session(ctx):
+        # 1. Save org details
+        org_res = await save_org_details("Test Override Org", "Desc", "override.com", "CEO")
+        org_id = org_res["org_id"]
+        
+        # 2. Associate contact details
+        await associate_contact_and_alert(
+            org_id=org_id,
+            contact_email="test@override.com",
+            contact_mobile="+15550199001",
+            full_name="Override User"
+        )
+        
+        # 3. Simulate sales update to COMPLETED in database
+        lead = ctx.get(scope="platform", collection_name="leads", doc_id=org_id)
+        lead["sales_status"] = "COMPLETED"
+        ctx.save(scope="platform", collection_name="leads", doc_id=org_id, data=lead)
+        
+        # 4. Verify OTP and check returned status is COMPLETED
+        res = await verify_otp_and_fetch_status("+15550199001", "123456")
+        assert res["status"] == "success"
+        assert len(res["linked_organizations"]) > 0
+        assert res["linked_organizations"][0]["org_name"] == "Test Override Org"
+        assert res["linked_organizations"][0]["status"] == "COMPLETED"
 
 
 @pytest.mark.asyncio

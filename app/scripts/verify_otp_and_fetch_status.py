@@ -67,7 +67,7 @@ async def verify_otp_and_fetch_status(mobile_number: str, otp_code: str) -> dict
         if lead_num == input_num:
             linked_orgs.append({
                 "org_name": lead.get("org_name"),
-                "status": lead.get("status")
+                "status": lead.get("sales_status") or "OPEN"
             })
 
     return {

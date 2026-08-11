@@ -69,6 +69,7 @@ async def save_org_details(
         "org_website": website_clean,
         "user_position": user_position,
         "status": "ASSOCIATED" if is_authenticated else "UNVERIFIED",
+        "sales_status": "OPEN",
         "contact_email": contact_email,
         "contact_mobile": contact_mobile,
         "contact_name": contact_name,
