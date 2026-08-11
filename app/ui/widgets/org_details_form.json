@@ -15,12 +15,12 @@
       }
     },
     {
-      "type": "input",
+      "type": "textarea",
       "props": {
         "name": "org_description",
         "label": "Brief Description",
         "placeholder": "Description",
-        "multiline": true,
+        "lineHeight": 6,
         "required": true,
         "errorMessage": "A brief description of your organization is required"
       }
