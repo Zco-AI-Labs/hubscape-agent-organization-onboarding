@@ -27,7 +27,7 @@
       "props": {
         "name": "mobile_number",
         "label": "Personal Contact Mobile Number",
-        "placeholder": "+15550199000",
+        "placeholder": "(123) 456 7890",
         "inputType": "text"
       }
     },
