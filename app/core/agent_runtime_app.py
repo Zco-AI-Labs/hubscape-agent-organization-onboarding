@@ -47,6 +47,30 @@ try:
 except Exception:
     pass
 
+try:
+    import opentelemetry.context as otel_context
+    from opentelemetry.context.contextvars_context import ContextVarsRuntimeContext
+
+    _orig_detach = otel_context.detach
+    _orig_cv_detach = ContextVarsRuntimeContext.detach
+
+    def _safe_detach(token):
+        try:
+            return _orig_detach(token)
+        except ValueError:
+            pass
+
+    def _safe_cv_detach(self, token):
+        try:
+            return _orig_cv_detach(self, token)
+        except ValueError:
+            pass
+
+    otel_context.detach = _safe_detach
+    ContextVarsRuntimeContext.detach = _safe_cv_detach
+except Exception:
+    pass
+
 import asyncio
 import logging
 from typing import Any, Optional, Dict, List, Union
@@ -236,7 +260,11 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
                 f"- {a.get('name')} (ID: {a.get('id')}): {a.get('description')}" for a in accessible_agents
             ) + "\n"
             
-        cloned_agent.instruction = f"{session_context}{roster_str}\n{base_instruction}"
+        system_instruction = metadata.get("system_instruction")
+        if system_instruction:
+            cloned_agent.instruction = f"{base_instruction}\n\n## ACTIVE WORKSPACE CUSTOM PERSONA & IDENTITY\n{system_instruction}"
+        else:
+            cloned_agent.instruction = f"{session_context}{roster_str}\n{base_instruction}"
         
         # Instantiate a request-scoped runner to avoid polluting the process-wide singleton
         scoped_runner = Runner(
@@ -403,7 +431,14 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
                     import logging
                     logging.warning("⚠️ Non-critical: Failed to bind session to context: %s", session_init_err)
 
-                await super().execute(context, interceptor)
+                try:
+                    await super().execute(context, interceptor)
+                except (ValueError, Exception) as otel_err:
+                    if "created in a different Context" in str(otel_err) or "Token" in str(otel_err):
+                        import logging
+                        logging.debug("OpenTelemetry cross-task context detach safely handled: %s", otel_err)
+                    else:
+                        raise
 
                 # 2. Persist updated ADK session state back to Firestore
                 try:
@@ -428,7 +463,10 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
                     import logging
                     logging.warning("⚠️ Non-critical: Failed to save session trajectory: %s", save_err)
         finally:
-            request_runner_ctx.reset(token)
+            try:
+                request_runner_ctx.reset(token)
+            except (ValueError, Exception):
+                pass
 
         # Determine if there are actions to propagate
         has_actions = bool(remote_ctx.actions)

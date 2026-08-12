@@ -293,7 +293,20 @@ class RemoteContext:
                 }
             }
             self.actions.append(action_payload)
-            return {"status": "success", "message": f"Widget '{widget_template_id}' queued."}
+            directive_response = {
+                "directive": "execute_host_tool",
+                "target_tool": "openAgentWidget",
+                "parameters": {
+                    "widgetId": widget_template_id,
+                    "widgetConfig": widget_config,
+                    "data": data or {},
+                    "styling": self.raw_context.get("styling", {}),
+                    "userPreferences": self.raw_context.get("userPreferences", {})
+                },
+                "status": "success",
+                "message": f"Widget '{widget_template_id}' queued."
+            }
+            return directive_response
         except Exception as e:
             raise RuntimeError(f"Failed to load widget '{widget_template_id}': {str(e)}")
 
@@ -313,7 +326,20 @@ class RemoteContext:
             }
         }
         self.actions.append(action_payload)
-        return {"status": "success", "message": "Custom UI layout queued."}
+        directive_response = {
+            "directive": "execute_host_tool",
+            "target_tool": "openAgentWidget",
+            "parameters": {
+                "widgetId": "generative_custom_ui",
+                "widgetConfig": layout,
+                "data": data or {},
+                "styling": self.raw_context.get("styling", {}),
+                "userPreferences": self.raw_context.get("userPreferences", {})
+            },
+            "status": "success",
+            "message": "Custom UI layout queued."
+        }
+        return directive_response
 
     def close_widget(self, message_id: Optional[str] = None, result_text: Optional[str] = None) -> dict:
         """Registers a CLOSE_AGENT_WIDGET client action directive to close/unmount an active widget."""
@@ -325,7 +351,17 @@ class RemoteContext:
             }
         }
         self.actions.append(action_payload)
-        return {"status": "success", "message": "Close widget directive queued."}
+        directive_response = {
+            "directive": "execute_host_tool",
+            "target_tool": "closeAgentWidget",
+            "parameters": {
+                "messageId": message_id,
+                "resultText": result_text or "✅ Widget closed."
+            },
+            "status": "success",
+            "message": "Close widget directive queued."
+        }
+        return directive_response
 
     def send_otp(self, phone_number: str) -> dict:
         """

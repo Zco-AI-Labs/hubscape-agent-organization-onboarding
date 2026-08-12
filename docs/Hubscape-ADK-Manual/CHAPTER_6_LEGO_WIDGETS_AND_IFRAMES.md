@@ -91,8 +91,21 @@ Use `client://close_widget` (or `client://dismiss`) for cancel, close, or dismis
 }
 ```
 
-### Option B: Agent-Initiated Tool Closure (`context.close_widget()`)
-For buttons with `agent://<action_name>`, the button submits data to the backend host agent. Inside a Python tool, call `context.close_widget()` to save state and instruct the client UI to unmount:
+### Option B: Agent-Initiated Tool Closure & Targeted Actions (`agent://<agent_id>/<action_name>`)
+For buttons triggering backend tool actions, configure `actionUrl` using the targeted URI format `agent://<agent_id>/<action_name>` (e.g. `agent://sales-onboarding-agent/save_org_details`). This guarantees 100% deterministic routing directly to the owning subagent without Host LLM prompt ambiguity:
+
+```json
+{
+  "type": "button",
+  "props": {
+    "label": "Submit Details",
+    "actionUrl": "agent://{{agent_id}}/submit_form",
+    "styling": { "colorTheme": "blue" }
+  }
+}
+```
+
+Inside a Python tool, call `context.close_widget()` to save state and instruct the client UI to unmount:
 
 ```python
 from app.core.hubscape_adk import get_context
