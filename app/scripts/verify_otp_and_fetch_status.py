@@ -70,6 +70,12 @@ async def verify_otp_and_fetch_status(mobile_number: str, otp_code: str) -> dict
                 "status": lead.get("sales_status") or "OPEN"
             })
 
+    # Close active verification OTP widget
+    try:
+        ctx.close_widget(result_text="✅ Identity verified successfully.")
+    except Exception as e:
+        print(f"⚠️ [WIDGET CLOSE WARNING] Failed to close OTP widget: {e}")
+
     return {
         "status": "success",
         "message": "Identity verified successfully.",

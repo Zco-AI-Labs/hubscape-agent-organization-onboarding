@@ -112,6 +112,12 @@ async def associate_contact_and_alert(
         }
     )
         
+    # Close active verification OTP widget
+    try:
+        ctx.close_widget(result_text="✅ OTP verification successful. Account associated.")
+    except Exception as e:
+        print(f"⚠️ [WIDGET CLOSE WARNING] Failed to close verification widget: {e}")
+
     # Queue rendering the summary card widget!
     summary_data = {
         "summary_name": lead.get("org_name"),
