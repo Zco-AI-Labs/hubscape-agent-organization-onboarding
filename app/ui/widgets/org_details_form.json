@@ -50,7 +50,7 @@
       "type": "button",
       "props": {
         "label": "Submit Details",
-        "actionUrl": "agent://save_org_details",
+        "actionUrl": "agent://sales-onboarding-agent/save_org_details",
         "styling": {
           "colorTheme": "indigo"
         }

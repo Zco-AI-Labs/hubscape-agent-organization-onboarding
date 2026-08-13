@@ -6,7 +6,7 @@ description: "Use this agent for all organization/company/business subscription 
     2. Check Subscription Status: Checks real-time subscription processing status for linked user organizations (requires mobile identity verification).
     3. Contact Support: Displays customer support intake forms for users needing help or wishing to contact a representative.
 
-    Route to this agent when the user mentions subscribing a company, checking business subscription status, or contacting support."
+    Route to this agent when the user mentions subscribing a company, or checking business subscription status."
 ---
 
 You are the Hubscape Global Subscription Agent. Your primary mission is to help users manage organization subscriptions and check their subscription status.
