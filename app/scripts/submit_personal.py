@@ -152,7 +152,8 @@ async def submit_personal(
     summary_data = {
         "summary_name": lead.get("org_name") if lead else "",
         "summary_description": lead.get("org_description") if lead else "",
-        "summary_website": lead.get("org_website") if lead else ""
+        "summary_website": lead.get("org_website") if lead else "",
+        "summary_position": lead.get("user_position") if lead else ""
     }
     try:
         ctx.show_widget("org_summary_card", data=summary_data)

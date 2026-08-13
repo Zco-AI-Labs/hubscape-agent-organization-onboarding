@@ -180,7 +180,8 @@ async def test_save_org_details_authenticated() -> None:
             data={
                 "summary_name": "Apex Robotics",
                 "summary_description": "Making robots",
-                "summary_website": "apexrobotics.com"
+                "summary_website": "apexrobotics.com",
+                "summary_position": "CFO"
             }
         )
 
@@ -265,7 +266,8 @@ async def test_associate_contact_and_alert() -> None:
             data={
                 "summary_name": "Apex",
                 "summary_description": "Robotics",
-                "summary_website": "apex.com"
+                "summary_website": "apex.com",
+                "summary_position": "CEO"
             }
         )
 
@@ -444,7 +446,8 @@ async def test_submit_personal_success() -> None:
         ctx.show_widget.assert_any_call("org_summary_card", data={
             "summary_name": "Apex Pizza",
             "summary_description": "Best Pizza",
-            "summary_website": "apex.com"
+            "summary_website": "apex.com",
+            "summary_position": "Manager"
         })
 
 @pytest.mark.asyncio

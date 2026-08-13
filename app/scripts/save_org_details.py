@@ -110,7 +110,8 @@ async def save_org_details(
             summary_data = {
                 "summary_name": org_name,
                 "summary_description": org_description,
-                "summary_website": website_clean
+                "summary_website": website_clean,
+                "summary_position": user_position
             }
             ctx.show_widget("org_summary_card", data=summary_data)
         else:

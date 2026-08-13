@@ -116,7 +116,8 @@ async def associate_contact_and_alert(
     summary_data = {
         "summary_name": lead.get("org_name"),
         "summary_description": lead.get("org_description"),
-        "summary_website": lead.get("org_website")
+        "summary_website": lead.get("org_website"),
+        "summary_position": lead.get("user_position")
     }
     try:
         ctx.show_widget("org_summary_card", data=summary_data)
