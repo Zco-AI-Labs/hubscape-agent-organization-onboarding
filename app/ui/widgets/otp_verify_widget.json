@@ -17,7 +17,7 @@
       "type": "button",
       "props": {
         "label": "Verify OTP",
-        "actionUrl": "agent://verify_mobile_otp",
+        "actionUrl": "agent://sales-onboarding-agent/verify_mobile_otp",
         "styling": {
           "colorTheme": "blue"
         }
