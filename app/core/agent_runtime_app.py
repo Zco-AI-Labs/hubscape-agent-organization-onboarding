@@ -549,6 +549,17 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
                         "message": interceptor.accumulated_text or "Call ended."
                     }
                     break
+                elif atype == "CLOSE_AGENT_WIDGET":
+                    directive_payload = {
+                        "directive": "execute_host_tool",
+                        "target_tool": "closeAgentWidget",
+                        "parameters": {
+                            "messageId": payload.get("messageId"),
+                            "resultText": payload.get("resultText") or "✅ Widget closed."
+                        },
+                        "message": interceptor.accumulated_text or "Closing widget."
+                    }
+                    break
 
             if directive_payload:
                 from a2a.types import TaskStatusUpdateEvent, Message, Role, TextPart, TaskStatus, TaskState, TaskArtifactUpdateEvent, Artifact
