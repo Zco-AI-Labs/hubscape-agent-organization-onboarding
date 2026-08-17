@@ -47,25 +47,32 @@ The FastAPI server automatically mounts an inbound JSON-RPC route `/a2a/{agent_n
 ### Data Isolation & Whitelisting:
 To prevent unauthorized cross-tenant communication:
 1. Discovery and consulting operations must work **solely** within the `accessible_agents` list injected into the context at runtime.
-2. If an agent tries to call an external tool on an agent not listed in `accessible_agents`, the request must fail immediately.
+2. If an agent tries to discover or call a subagent not listed in `accessible_agents`, the request must fail immediately.
 
-### Executing Outbound A2A Calls:
-Use the standard context agents wrapper to query another agent:
+### Discovering Whitelisted Subagents:
+Agents can search and retrieve available subagents dynamically:
+* **Inside Custom Python Tools:** Call [`context.get_available_agents()`](../../app/core/hubscape_adk.py):
+  ```python
+  from app.core.hubscape_adk import get_context
+
+  def find_agents(query: str = None) -> list:
+      context = get_context()
+      return context.get_available_agents(query=query)
+  ```
+* **Via System Tool:** The built-in system tool [`discover_agents.py`](../../app/core/system_tools/discover_agents.py) is registered on the root agent so Gemini can autonomously discover subagents when needed.
+
+### Consulting Outbound Subagents:
+To query a specialized subagent, invoke the built-in system tool [`consultAgent.py`](../../app/core/system_tools/consultAgent.py):
 ```python
-# app/scripts/consult_support.py
-from app.core.hubscape_adk import get_context
+# app/scripts/delegate_task.py
+from app.core.system_tools.consultAgent import consultAgent
 
-async def consult_support(user_query: str) -> dict:
-    context = get_context()
-    
-    # Delegate standard tool calling
-    result = await context.agents.call_external_tool(
-        ext_agent_key="support_ticket_agent",
-        tool_name="file_ticket",
-        arguments={"issue": user_query}
-    )
-    return result
+async def delegate_task(agent_id: str, query: str) -> str:
+    # Invokes the remote A2A subagent and returns its response
+    response = await consultAgent(agentId=agent_id, query=query)
+    return response
 ```
+Under the hood, `consultAgent` instantiates `RemoteA2aAgent` with credentials and metadata from `RemoteContext`, enforcing maximum delegation depth limits and directive parsing.
 
 ---
 

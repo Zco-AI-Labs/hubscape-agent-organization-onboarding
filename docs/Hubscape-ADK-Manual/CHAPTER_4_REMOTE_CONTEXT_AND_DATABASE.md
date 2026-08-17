@@ -45,7 +45,22 @@ Standard GCS storage is fully integrated via context file methods. Like database
 
 ---
 
-## 4. Index-Free Query Rules
+## 4. Subagent Discovery (`get_available_agents`)
+
+To discover other subagents registered and whitelisted for the active user session, `RemoteContext` provides a built-in discovery helper:
+
+### Subagent Discovery Method on `RemoteContext`:
+* `context.get_available_agents(query: str = None) -> list`: Retrieves the list of whitelisted subagents available in the active session context. If an optional `query` string is provided, it filters agents by matching against their name or description (case-insensitive).
+  * **Return Value:** A list of dictionaries containing each agent's `id`, `name`, `description`, and `a2aUrl`.
+  * **Example:**
+    ```python
+    context = get_context()
+    available_agents = context.get_available_agents(query="support")
+    ```
+
+---
+
+## 5. Index-Free Query Rules
 
 The platform does not support custom composite indexes in production databases. 
 * **Rule:** Do not write queries containing multiple inequality filters, order-by clauses on unindexed fields, or filtering across multiple ranges.
@@ -53,7 +68,7 @@ The platform does not support custom composite indexes in production databases.
 
 ---
 
-## 5. Agent Observability, Telemetry & Billing Logs
+## 6. Agent Observability, Telemetry & Billing Logs
 
 Because custom agent action events (like RAG database queries, external API lookups, web scraping, or custom payments) are **not** standard GenAI model inference calls, they are **not** automatically telemetry-logged by Google's Vertex AI model pipeline. 
 
