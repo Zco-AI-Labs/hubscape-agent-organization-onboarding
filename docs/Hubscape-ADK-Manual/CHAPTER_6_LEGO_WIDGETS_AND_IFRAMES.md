@@ -181,5 +181,13 @@ For live-monitored tasks or background streams, render a `live-error-banner` ele
 
 ---
 
+## 7. Complete Component Catalog & Parameters Reference
+
+For a complete reference guide detailing all 25 supported Lego UI elements (such as `container`, `text`, `table`, `tabs`, `flow-chart`, and more), complete with parameters, default values, behavior descriptions, and JSON examples for each, please refer to the:
+
+👉 **[Hubscape ADK UI Elements Catalog (UI_ELEMENTS.md)](file:///Users/rajvekeria/Documents/GitHub/hubscape-agent-template/docs/UI_ELEMENTS.md)**
+
+---
+
 [Next Chapter: OAuth Integration & Hubscape ADK API](CHAPTER_7_OAUTH_INTEGRATION_AND_ADK_API.md) | [Previous Chapter: Sandbox Emulation](CHAPTER_5_SANDBOX_EMULATION.md)
 

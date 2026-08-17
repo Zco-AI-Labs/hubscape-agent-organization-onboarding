@@ -10,7 +10,7 @@ Hubscape UI components support two main ways to control styling and layout:
 1. **Tailwind Utility Classes (`className`):** Recommended for custom styling. You can pass standard Tailwind utility classes under `props.className` (e.g., `"props": { "className": "flex flex-col gap-4 p-4" }`).
 2. **Explicit Layout Props:** For standard layouts, components support explicit keys inside `props` (e.g., `"direction": "vertical"`, `"gap": "sm"`, `"padding": "md"` for containers; `"size": "lg"`, `"weight": "bold"` for text; `"required": true`, `"multiline": true` for input fields). 
 
-The examples in this catalog focus on the flexible Tailwind-based `className` styling system, but either approach (or a mixture of both) will render correctly. Refer to [contact_form.json](file:///Users/rajvekeria/Documents/GitHub/hubscape-agent-template/app/ui/widgets/contact_form.json) for a demonstration of explicit layout props.
+The examples in this catalog focus on the flexible Tailwind-based `className` styling system, but either approach (or a mixture of both) will render correctly. Refer to the example onboarding project's [contact_form.json](file:///Users/rajvekeria/Documents/GitHub/hubscape-agent-template/example-agent-projects/hubscape-agent-organization-onboarding/app/ui/widgets/contact_form.json) for a demonstration of explicit layout props.
 
 ---
 
@@ -64,7 +64,7 @@ Renders a button. When clicked, it packages the input values of all elements ins
 
 ### Props:
 * `label` (string): Button display text.
-* `actionUrl` (string): The target endpoint path (e.g., `/api/plugins/{{agent_id}}/save`).
+* `actionUrl` (string): The target endpoint path (e.g., `/api/plugins/{{agent_id}}/save` or `agent://<action_name>`).
 * `className` (string): Tailwind CSS utility styling classes.
 
 ### Example JSON:
@@ -167,66 +167,7 @@ This element automatically consumes the user's platform preferences (`weekStartD
 
 ---
 
-## 🖥️ 7. Sandboxed IFrame (`iframe`)
-An escape hatch to load custom, interactive HTML pages. Enables support for custom canvases, drawing pads, interactive charts, and external widget scripts.
-
-### Props:
-* `src` (string): Path to your static files (e.g. `/api/agents/{{agent_id}}/static/widget.html`).
-* `height` (string): Container height (e.g., `"350px"`).
-* `className` (string): Styling overrides.
-
-### Communication (Bidirectional `postMessage`):
-* **Submit data from inside the IFrame:**
-  ```javascript
-  // Extract dynamic agent ID from window pathname to construct the correct endpoint
-  const pathParts = window.location.pathname.split('/');
-  const agentId = ((pathParts[2] === 'plugins' || pathParts[2] === 'agents') && pathParts[3]) ? pathParts[3] : 'my_agent';
-
-  window.parent.postMessage({
-    type: 'SUBMIT_FORM',
-    actionUrl: `/api/plugins/${agentId}/submit_data`,
-    payload: { signature_path: '...' }
-  }, '*');
-  ```
-* The host will perform the HTTP POST to your agent's API endpoint and send the backend's response back to your iframe page so you can trigger success animations.
-
-### Example JSON:
-```json
-{
-  "type": "iframe",
-  "props": {
-    "src": "/api/agents/{{agent_id}}/static/signature_pad.html",
-    "height": "300px"
-  }
-}
-```
-
----
-
-## 🔐 8. OAuth Connection Card (`oauth`)
-Renders a standardized premium card to request user authorization/connection approval for third-party platforms (e.g. GitHub, Google, Slack, Jira).
-
-### Props:
-* `providerName` / `provider_name` (string): Display name of the provider (e.g. `"GitHub"`).
-* `authDescription` / `auth_description` (string): Context/instructions explaining why the integration is required.
-* `actionUrl` / `action_url` (string): The API endpoint to post the redirect challenge request to (e.g. `/api/plugins/{{agent_id}}/authorize_github`).
-* `className` (string): Styling overrides.
-
-### Example JSON:
-```json
-{
-  "type": "oauth",
-  "props": {
-    "providerName": "GitHub",
-    "authDescription": "To verify GitHub OAuth functionality and list profile statistics, this agent requires connection approval.",
-    "actionUrl": "/api/plugins/{{agent_id}}/authorize_github"
-  }
-}
-```
-
----
-
-## 🎛️ 9. Toggle Switch (`toggle`)
+## 🎛️ 7. Toggle Switch (`toggle`)
 Renders a boolean checkbox or custom animated sliding toggle switch.
 
 ### Props:
@@ -252,7 +193,7 @@ Renders a boolean checkbox or custom animated sliding toggle switch.
 
 ---
 
-## 🔘 10. Choice Picker (`choice-picker`)
+## 🔘 8. Choice Picker (`choice-picker`)
 Renders visible radio buttons or checkbox options (supports multi-selection lists).
 
 ### Props:
@@ -283,7 +224,7 @@ Renders visible radio buttons or checkbox options (supports multi-selection list
 
 ---
 
-## 🎚️ 11. Range Slider (`slider`)
+## 🎚️ 9. Range Slider (`slider`)
 Renders a numeric slider for selecting values within bounds.
 
 ### Props:
@@ -313,7 +254,7 @@ Renders a numeric slider for selecting values within bounds.
 
 ---
 
-## 🗂️ 12. Tabs Container (`tabs`)
+## 🗂️ 10. Tabs Container (`tabs`)
 Nestable container displaying switchable tab panels.
 
 > [!WARNING]
@@ -352,7 +293,7 @@ Nestable container displaying switchable tab panels.
 
 ---
 
-## 📂 13. Accordion (`accordion`)
+## 📂 11. Accordion (`accordion`)
 Collapsible layout panel for toggling information details.
 
 ### Props:
@@ -378,7 +319,7 @@ Collapsible layout panel for toggling information details.
 
 ---
 
-## 📊 14. Data Table (`table`)
+## 📊 12. Data Table (`table`)
 Renders rows and columns of data, supporting column sorting and client-side pagination.
 
 > [!IMPORTANT]
@@ -413,7 +354,7 @@ Renders rows and columns of data, supporting column sorting and client-side pagi
 
 ---
 
-## 📜 15. Scrollable List (`list`)
+## 📜 13. Scrollable List (`list`)
 A container to list simple repeating items or child layouts.
 
 ### Props:
@@ -439,7 +380,7 @@ A container to list simple repeating items or child layouts.
 
 ---
 
-## 📈 16. Progress Tracker (`progress`)
+## 📈 14. Progress Tracker (`progress`)
 Renders vertical progress indicators, circular dials, or infinite spinners.
 
 ### Props:
@@ -457,6 +398,65 @@ Renders vertical progress indicators, circular dials, or infinite spinners.
     "value": 75,
     "variant": "circle",
     "label": "Loading data assets..."
+  }
+}
+```
+
+---
+
+## 🖥️ 15. Sandboxed IFrame (`iframe`)
+An escape hatch to load custom, interactive HTML pages. Enables support for custom canvases, drawing pads, interactive charts, and external widget scripts.
+
+### Props:
+* `src` (string): Path to your static files (e.g. `/api/agents/{{agent_id}}/static/widget.html`).
+* `height` (string): Container height (e.g., `"350px"`).
+* `className` (string): Styling overrides.
+
+### Communication (Bidirectional `postMessage`):
+* **Submit data from inside the IFrame:**
+  ```javascript
+  // Extract dynamic agent ID from window pathname to construct the correct endpoint
+  const pathParts = window.location.pathname.split('/');
+  const agentId = ((pathParts[2] === 'plugins' || pathParts[2] === 'agents') && pathParts[3]) ? pathParts[3] : 'my_agent';
+
+  window.parent.postMessage({
+    type: 'SUBMIT_FORM',
+    actionUrl: `/api/plugins/${agentId}/submit_data`,
+    payload: { signature_path: '...' }
+  }, '*');
+  ```
+* The host will perform the HTTP POST to your agent's API endpoint and send the backend's response back to your iframe page so you can trigger success animations.
+
+### Example JSON:
+```json
+{
+  "type": "iframe",
+  "props": {
+    "src": "/api/agents/{{agent_id}}/static/signature_pad.html",
+    "height": "300px"
+  }
+}
+```
+
+---
+
+## 🔐 16. OAuth Connection Card (`oauth`)
+Renders a standardized premium card to request user authorization/connection approval for third-party platforms (e.g. GitHub, Google, Slack, Jira).
+
+### Props:
+* `providerName` / `provider_name` (string): Display name of the provider (e.g. `"GitHub"`).
+* `authDescription` / `auth_description` (string): Context/instructions explaining why the integration is required.
+* `actionUrl` / `action_url` (string): The API endpoint to post the redirect challenge request to (e.g. `/api/plugins/{{agent_id}}/authorize_github`).
+* `className` (string): Styling overrides.
+
+### Example JSON:
+```json
+{
+  "type": "oauth",
+  "props": {
+    "providerName": "GitHub",
+    "authDescription": "To verify GitHub OAuth functionality and list profile statistics, this agent requires connection approval.",
+    "actionUrl": "/api/plugins/{{agent_id}}/authorize_github"
   }
 }
 ```
@@ -649,5 +649,3 @@ For multiline input fields, the linter and engine support the type `"textarea"`.
 ### Behavior:
 * **Automatic Mapping**: The layout engine automatically normalizes `"type": "textarea"` elements into `"type": "input"` with multiline layout support.
 * **Compatibility**: Props and data serialization follow the standard `input` element spec.
-
-
