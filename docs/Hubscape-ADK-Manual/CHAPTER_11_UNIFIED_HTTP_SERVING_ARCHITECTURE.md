@@ -6,7 +6,7 @@ To support diverse serving protocols under a single runtime environment, modern 
 
 ## 1. Main Entry Point (`fast_api_app.py`)
 
-The serving lifecycle is driven by `[app/core/fast_api_app.py](file:///Users/rajvekeria/Documents/GitHub/hubscape-agent-template/app/core/fast_api_app.py)`. It wraps the standard `get_fast_api_app` from the ADK library and configures custom lifespan events, routes, and middleware.
+The serving lifecycle is driven by `[app/core/fast_api_app.py](../../app/core/fast_api_app.py)`. It wraps the standard `get_fast_api_app` from the ADK library and configures custom lifespan events, routes, and middleware.
 
 ```mermaid
 graph TD
@@ -48,7 +48,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 ## 2. Shared Services Architecture
 
-To ensure data and files created on one endpoint (e.g. ADK REST) are accessible across other endpoints (e.g. A2A JSON-RPC or Vertex Reasoning Engine queries), services are registered process-wide under the custom `shared://` URI scheme in `[app/app_utils/services.py](file:///Users/rajvekeria/Documents/GitHub/hubscape-agent-template/app/app_utils/services.py)`.
+To ensure data and files created on one endpoint (e.g. ADK REST) are accessible across other endpoints (e.g. A2A JSON-RPC or Vertex Reasoning Engine queries), services are registered process-wide under the custom `shared://` URI scheme in `[app/app_utils/services.py](../../app/app_utils/services.py)`.
 
 * **`shared://session`**: Resolves to `VertexAiSessionService` when deployed on Google Cloud Platform, and falls back to `InMemorySessionService` locally (monkeypatching database updates to `local_db.json`).
 * **`shared://artifact`**: Resolves to `GcsArtifactService` on GCP when `LOGS_BUCKET_NAME` is configured, and falls back to `InMemoryArtifactService` locally.
@@ -59,7 +59,7 @@ To ensure data and files created on one endpoint (e.g. ADK REST) are accessible 
 
 Gemini Enterprise and the Vertex AI Console Playground execute queries by calling the Reasoning Engine `/api/reasoning_engine` (synchronous) and `/api/stream_reasoning_engine` (streaming) endpoints. 
 
-These routes are dynamically mounted by the `attach_reasoning_engine_routes(app)` helper defined in `[app/app_utils/reasoning_engine_adapter.py](file:///Users/rajvekeria/Documents/GitHub/hubscape-agent-template/app/app_utils/reasoning_engine_adapter.py)`. 
+These routes are dynamically mounted by the `attach_reasoning_engine_routes(app)` helper defined in `[app/app_utils/reasoning_engine_adapter.py](../../app/app_utils/reasoning_engine_adapter.py)`. 
 
 ### Protocol Translation:
 The adapter intercepts the reasoning engine payload (`{ "class_method": "...", "input": {...} }`), translates the class method into the matching `AdkApp` operation, executes the action using the shared runner, and formats the output back into the expected JSON structure:
@@ -70,7 +70,7 @@ The adapter intercepts the reasoning engine payload (`{ "class_method": "...", "
 
 ## 4. Inbound Agent-to-Agent (A2A) Routing
 
-Inbound A2A routing is mounted by `attach_a2a_routes()` from `[app/app_utils/a2a.py](file:///Users/rajvekeria/Documents/GitHub/hubscape-agent-template/app/app_utils/a2a.py)`. It exposes three main routes under `/a2a/{agent_name}`:
+Inbound A2A routing is mounted by `attach_a2a_routes()` from `[app/app_utils/a2a.py](../../app/app_utils/a2a.py)`. It exposes three main routes under `/a2a/{agent_name}`:
 1. **`/.well-known/agent-card.json`**: Exposes the capabilities of your agent to the platform.
 2. **`/agent-card.json`**: An extended card detailing schemas and functions.
 3. **`/` (Root rpc path)**: A JSON-RPC endpoint that accepts task execution and streaming requests delegated by other agents.
@@ -79,7 +79,7 @@ Inbound A2A routing is mounted by `attach_a2a_routes()` from `[app/app_utils/a2a
 
 ## 5. Deployment Containerization (`Dockerfile`)
 
-The containerized FastAPI application is built using the root `[Dockerfile](file:///Users/rajvekeria/Documents/GitHub/hubscape-agent-template/Dockerfile)`. When deploying to container-based runtimes:
+The containerized FastAPI application is built using the root `[Dockerfile](../../Dockerfile)`. When deploying to container-based runtimes:
 - The container installs dependencies via `pyproject.toml`.
 - Boots the server using Uvicorn:
   ```bash

@@ -6,7 +6,7 @@ This chapter covers how the ADK parses system instructions (prompts) and dynamic
 
 ## 1. Defining System Instructions (`app/SKILL.md`)
 
-System instructions (the agent's persona and rules) are housed inside the markdown file [app/SKILL.md](file:///Users/rajvekeria/Documents/GitHub/hubscape-agent-template/app/SKILL.md).
+System instructions (the agent's persona and rules) are housed inside the markdown file [app/SKILL.md](../../app/SKILL.md).
 
 * **YAML Frontmatter:** The top of the file contains configurations (name, description) that identify the agent:
   ```markdown
@@ -16,9 +16,9 @@ System instructions (the agent's persona and rules) are housed inside the markdo
   ---
   You are a highly efficient to-do list manager...
   ```
-* **Strict Validation Enforcement:** The agent loader `[app/agent.py](file:///Users/rajvekeria/Documents/GitHub/hubscape-agent-template/app/agent.py)` parses `SKILL.md` at boot time. If `SKILL.md` is missing, it raises a `FileNotFoundError`. If the YAML frontmatter delimiters (`---`) or required fields (`name`, `description`) are missing, it raises a `ValueError`.
+* **Strict Validation Enforcement:** The agent loader `[app/agent.py](../../app/agent.py)` parses `SKILL.md` at boot time. If `SKILL.md` is missing, it raises a `FileNotFoundError`. If the YAML frontmatter delimiters (`---`) or required fields (`name`, `description`) are missing, it raises a `ValueError`.
 * **Auto-Scrubbing:** The loader automatically strips the YAML frontmatter and passes only the remaining markdown instructions directly to the `instruction` property of the `google.adk.Agent` instance.
-* **Packaging Requirement:** Because `SKILL.md` is parsed dynamically at runtime, it must be bundled inside the deployed wheel package. This is enforced by configuring force-includes under `[tool.hatch.build.targets.wheel.force-include]` in `[pyproject.toml](file:///Users/rajvekeria/Documents/GitHub/hubscape-agent-template/pyproject.toml)`:
+* **Packaging Requirement:** Because `SKILL.md` is parsed dynamically at runtime, it must be bundled inside the deployed wheel package. This is enforced by configuring force-includes under `[tool.hatch.build.targets.wheel.force-include]` in `[pyproject.toml](../../pyproject.toml)`:
   ```toml
   [tool.hatch.build.targets.wheel.force-include]
   "app/privileges.json" = "app/privileges.json"

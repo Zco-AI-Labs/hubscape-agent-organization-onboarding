@@ -78,7 +78,7 @@ The `deploy.py` script acts as a smart wrapper that prepares your workspace and 
 
 Before deploying, `deploy.py` automatically performs the following preparation steps:
 * **Configuration Merging:** It checks for the existence of `deploy_config.json`. If missing, it generates it with current defaults; if present, it deep-merges developer-defined parameters under the `agents-cli-manifest` -> `create_params` key into `agents-cli-manifest.yaml` to ensure they are preserved during deployment.
-* **Name Synchronization:** It parses the agent's name from `[app/agent.py](file:///Users/rajvekeria/Documents/GitHub/hubscape-agent-template/app/agent.py)` and synchronizes it across `agents-cli-manifest.yaml`, `pyproject.toml`, `uv.lock`, `app/SKILL.md`, and Terraform deployment variables.
+* **Name Synchronization:** It parses the agent's name from `[app/agent.py](../../app/agent.py)` and synchronizes it across `agents-cli-manifest.yaml`, `pyproject.toml`, `uv.lock`, `app/SKILL.md`, and Terraform deployment variables.
 * **Dependency Locking:** It executes `uv lock` to ensure `uv.lock` is fully updated.
 * **IAM Service Account Verification:** It dynamically queries the Firestore `agents` collection to see if the agent name is registered. It extracts the associated `iam_profile` service account configuration (defaulting to `"sa-standard-agent"`), constructs the appropriate Gserviceaccount email, and passes it via `--service-account` to `agents-cli deploy` to secure execution identity.
 

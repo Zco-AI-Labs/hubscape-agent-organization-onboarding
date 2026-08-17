@@ -8,7 +8,7 @@ This chapter covers the relationship between the `hubscape-agent-template` works
 
 To allow offline prototyping, the `hubscape-adk` local CLI starts a mock platform core (called Holodeck) that executes your agent code locally. 
 
-When running in local dev, your agent is not connected to a live GCP Firestore database or a GCS Bucket. To protect production and let tools operate seamlessly, the local sandbox dynamically intercepts database and storage calls using a process-wide **Shared Services Registry** defined in `[app/app_utils/services.py](file:///Users/rajvekeria/Documents/GitHub/hubscape-agent-template/app/app_utils/services.py)`.
+When running in local dev, your agent is not connected to a live GCP Firestore database or a GCS Bucket. To protect production and let tools operate seamlessly, the local sandbox dynamically intercepts database and storage calls using a process-wide **Shared Services Registry** defined in `[app/app_utils/services.py](../../app/app_utils/services.py)`.
 
 ---
 
@@ -24,7 +24,7 @@ context.get(...)         ----->    shared://session (InMemory)        ----->  Re
 context.save_file(...)   ----->    shared://artifact (InMemory)       ----->  Writes to local directory
 ```
 
-* **Process-Wide Shared Services (`shared://`):** Under the hood, `[app/app_utils/services.py](file:///Users/rajvekeria/Documents/GitHub/hubscape-agent-template/app/app_utils/services.py)` registers custom schemes:
+* **Process-Wide Shared Services (`shared://`):** Under the hood, `[app/app_utils/services.py](../../app/app_utils/services.py)` registers custom schemes:
   - `shared://session` for session tracking.
   - `shared://artifact` for file artifacts.
 * **Environment-Based Service Resolution:**

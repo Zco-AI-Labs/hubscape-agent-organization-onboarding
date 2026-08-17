@@ -10,7 +10,7 @@ The ADK allows agents to interact with external tools hosted on remote MCP serve
 
 ### Setup and Configuration
 
-To register a remote MCP server and configure agent-specific characteristics (such as Google Maps or Google Search grounding toggles), define them inside the sandboxed [app/config.json](file:///Users/rajvekeria/Documents/GitHub/hubscape-agent-template/app/config.json) file:
+To register a remote MCP server and configure agent-specific characteristics (such as Google Maps or Google Search grounding toggles), define them inside the sandboxed [app/config.json](../../app/config.json) file:
 
 ```json
 {
@@ -30,7 +30,7 @@ To register a remote MCP server and configure agent-specific characteristics (su
 
 ### How it Works
 
-1. **Static Loading:** At boot time, [app/agent.py](file:///Users/rajvekeria/Documents/GitHub/hubscape-agent-template/app/agent.py) reads the `mcp_servers` configuration block, instantiates a native `McpToolset` for each server, and registers them inside the `AdkAgent`'s tools list.
+1. **Static Loading:** At boot time, [app/agent.py](../../app/agent.py) reads the `mcp_servers` configuration block, instantiates a native `McpToolset` for each server, and registers them inside the `AdkAgent`'s tools list.
 2. **Dynamic OAuth Resolution:** During request execution (in `geap_agent_wrapper.py` or `agent_runtime_app.py`), the wrapper automatically resolves token placeholders (like `${OAUTH_TOKEN:github}`) by calling `await context.get_oauth_token("github")`, injecting the active user credentials into the connection headers.
 3. **Access Control Filtering:** The host platform can restrict access to specific MCP tools by sending a whitelist under `accessible_tools` in the request metadata. The wrapper applies this whitelist directly to the toolset's `tool_filter` to ensure the agent only uses approved capabilities.
 
@@ -42,7 +42,7 @@ To register a remote MCP server and configure agent-specific characteristics (su
 A2A allows sub-agents to discover and delegate queries to other agents. An agent acts as both a **client** (making outbound requests) and a **server** (accepting inbound requests).
 
 ### Inbound A2A server endpoints:
-The FastAPI server automatically mounts an inbound JSON-RPC route `/a2a/{agent_name}` using the helper `attach_a2a_routes()` defined in `[app/app_utils/a2a.py](file:///Users/rajvekeria/Documents/GitHub/hubscape-agent-template/app/app_utils/a2a.py)`. The platform invokes this route when delegating user requests.
+The FastAPI server automatically mounts an inbound JSON-RPC route `/a2a/{agent_name}` using the helper `attach_a2a_routes()` defined in `[app/app_utils/a2a.py](../../app/app_utils/a2a.py)`. The platform invokes this route when delegating user requests.
 
 ### Data Isolation & Whitelisting:
 To prevent unauthorized cross-tenant communication:

@@ -58,7 +58,7 @@ In production cloud environments, resolving connection, permission, or loading f
 * **GCP Env**: Project ID, region, and available service account email credentials.
 * **Paths**: Current working directory and lists of available files under `app/` and the root path.
 * **Libraries**: Deployed versions of critical packages (e.g., `google-adk`, `google-cloud-aiplatform`).
-* **Tool Imports**: Any Python execution warnings or stack traces captured by `[load_local_tools.py](file:///Users/rajvekeria/Documents/GitHub/hubscape-agent-template/app/core/load_local_tools.py)` during startup.
+* **Tool Imports**: Any Python execution warnings or stack traces captured by `[load_local_tools.py](../../app/core/load_local_tools.py)` during startup.
 
 ---
 
