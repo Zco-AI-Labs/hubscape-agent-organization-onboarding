@@ -411,11 +411,11 @@ async def test_show_widget_tools() -> None:
         assert res1["status"] == "success"
 
         res3 = await show_otp_verify_widget()
-        ctx.show_widget.assert_called_with("otp_verify")
+        ctx.show_widget.assert_called_with("otp_verify_form")
         assert res3["status"] == "success"
 
         res4 = await show_personal_details_widget()
-        ctx.show_widget.assert_called_with("personal_details")
+        ctx.show_widget.assert_called_with("personal_details_form")
         assert res4["status"] == "success"
 
         res5 = await show_contact_form()
@@ -523,8 +523,8 @@ async def test_submit_personal_combined_flow() -> None:
         # 4. Verify mobile is held in session state
         assert ctx.session.state["pending_mobile"] == "555-9999"
         
-        # 5. Verify otp_verify widget is queued
-        ctx.show_widget.assert_any_call("otp_verify")
+        # 5. Verify otp_verify_form widget is queued
+        ctx.show_widget.assert_any_call("otp_verify_form")
         
         # 6. Verify completing OTP and associate contact
         assoc_res = await associate_contact_and_alert(
@@ -621,7 +621,7 @@ async def test_save_phone_details() -> None:
     ctx.show_widget = MagicMock()
     with context_session(ctx):
         await save_phone_details()
-        ctx.show_widget.assert_called_once_with("phone_details")
+        ctx.show_widget.assert_called_once_with("phone_details_form")
 
 
 @pytest.mark.asyncio
@@ -636,7 +636,7 @@ async def test_send_mobile_otp_saves_pending_mobile() -> None:
         res = await send_mobile_otp("+15550199000")
         assert res["status"] == "success"
         assert ctx.session.state["pending_mobile"] == "+15550199000"
-        ctx.show_widget.assert_called_once_with("otp_verify")
+        ctx.show_widget.assert_called_once_with("otp_verify_form")
 
 
 @pytest.mark.asyncio
@@ -681,13 +681,13 @@ async def test_guest_status_check_flow_after_otp_verification() -> None:
         
         # Step 2: Show phone input widget using save_phone_details
         await save_phone_details()
-        ctx.show_widget.assert_called_with("phone_details")
+        ctx.show_widget.assert_called_with("phone_details_form")
         
-        # Step 3: User submits phone -> send_mobile_otp queues otp_verify
+        # Step 3: User submits phone -> send_mobile_otp queues otp_verify_form
         send_res = await send_mobile_otp("+15550199888")
         assert send_res["status"] == "success"
         assert ctx.session.state["pending_mobile"] == "+15550199888"
-        ctx.show_widget.assert_called_with("otp_verify")
+        ctx.show_widget.assert_called_with("otp_verify_form")
         
         # Step 4: User submits OTP in otp_verify_widget -> calls verify_mobile_otp
         verify_res = await verify_mobile_otp(otp_code="123456")

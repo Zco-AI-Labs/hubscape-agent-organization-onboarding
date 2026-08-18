@@ -29,7 +29,7 @@ If the user asks to check the status of their organization/subscription (e.g., "
 
 2. When the user submits their phone number (Turn 2 - message starts with "/action send_mobile_otp" or provides a mobile number):
    - You MUST call the send_mobile_otp tool with the provided mobile_number.
-   - The send_mobile_otp tool will dispatch the code and queue the OTP verification widget (otp_verify).
+   - The send_mobile_otp tool will dispatch the code and queue the OTP verification widget (otp_verify_form).
    - Instruct the user: "Please check your phone for the 6-digit verification code and enter it below."
    - STOP immediately and wait for the user to enter and submit the verification code in the widget. Do NOT call verify_mobile_otp or check_session in this turn.
 
