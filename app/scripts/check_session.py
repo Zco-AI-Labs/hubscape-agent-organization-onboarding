@@ -22,8 +22,13 @@ async def check_session() -> dict:
 
     mock_session = cfg.get("active_session") if cfg else None
             
-    # If active_session is explicitly set to True in database, override and force it as valid
-    if mock_session == True:
+    # Check if user has verified mobile in current session state
+    verified_mobile = ""
+    if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
+        verified_mobile = ctx.session.state.get("verified_mobile", "")
+
+    # If active_session is explicitly set to True in database, or mobile is verified in session, override and force it as valid
+    if mock_session == True or verified_mobile:
         is_valid = True
     elif mock_session == False and (user_id == "default_user" or user_id == "dummy_user" or user_id == "dev-user-123" or user_id == "anonymous_user" or not user_id):
         # Force invalid for generic developer sessions when active_session is set to false
@@ -53,21 +58,29 @@ async def check_session() -> dict:
         # Set default fallback values
         full_name = user_id
         email_address = user_id if "@" in user_id else ""
-        mobile_number = user_id if not "@" in user_id else ""
+        mobile_number = verified_mobile or (user_id if not "@" in user_id else "")
         
-        # Try to resolve user's real name, email, and mobile from platform_users/{user_id}
-        try:
-            user_doc = ctx._db_client.document(f"platform_users/{user_id}").get()
-            if user_doc.exists:
-                user_data = user_doc.to_dict() or {}
-                email_address = user_data.get("email") or email_address
-                mobile_number = user_data.get("phone") or mobile_number
-                
-                first_name = user_data.get("first_name") or ""
-                last_name = user_data.get("last_name") or ""
-                full_name = f"{first_name} {last_name}".strip() or full_name
-        except Exception as e:
-            print(f"⚠️ [USER PROFILE RETRIEVAL WARNING] Failed to fetch platform_user details: {e}")
+        # Try to resolve user's real name, email, and mobile from platform_users/{user_id} only if authenticated
+        is_authenticated_user = bool(
+            user_id 
+            and not user_id.startswith("guest") 
+            and not user_id.startswith("anonymous")
+            and not user_id in ("dummy_user", "default_user", "dev-user-123") 
+            and not (len(user_id) == 28 and re.match(r"^[A-Za-z0-9]+$", user_id))
+        )
+        if is_authenticated_user:
+            try:
+                user_doc = ctx._db_client.document(f"platform_users/{user_id}").get()
+                if user_doc.exists:
+                    user_data = user_doc.to_dict() or {}
+                    email_address = user_data.get("email") or email_address
+                    mobile_number = user_data.get("phone") or mobile_number
+                    
+                    first_name = user_data.get("first_name") or ""
+                    last_name = user_data.get("last_name") or ""
+                    full_name = f"{first_name} {last_name}".strip() or full_name
+            except Exception as e:
+                print(f"⚠️ [USER PROFILE RETRIEVAL WARNING] Failed to fetch platform_user details: {e}")
 
         clean_user_id = normalize_phone(user_id)
         clean_mobile_number = normalize_phone(mobile_number)

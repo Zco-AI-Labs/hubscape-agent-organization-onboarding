@@ -17,7 +17,8 @@
         "submit_personal",
         "close_widget",
         "verify_otp_and_fetch_status",
-        "show_phone_otp_verify_widget"
+        "show_phone_otp_verify_widget",
+        "fetch_phone_details"
       ]
     }
   }

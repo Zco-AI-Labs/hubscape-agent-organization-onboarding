@@ -41,7 +41,7 @@ To get started developing a custom agent:
    ```bash
    pipx install git+https://github.com/Zco-AI-Labs/Hubscape-ADK-Studio.git
    ```
-2. **Obtain Sandbox Credentials:** Request a Personal Access Token (PAT), a unique Agent UUID, and a Deployment Token from your Organization Administrator.
+2. **Obtain Sandbox Credentials:** Request a unique Agent UUID and a Deployment Token from your Organization Administrator.
 3. **Bootstrap Repo:** Click "Use this template" on the template repository and clone it:
    ```bash
    hubscape-adk clone https://github.com/YourOrg/your-agent-repo

@@ -18,6 +18,7 @@ from app.scripts.show_contact_form import show_contact_form
 from app.scripts.submit_personal import submit_personal
 from app.scripts.verify_otp_and_fetch_status import verify_otp_and_fetch_status
 from app.scripts.show_phone_otp_verify_widget import show_phone_otp_verify_widget
+from app.scripts.fetch_phone_details import fetch_phone_details
 
 # Mock default GCP credentials and project settings
 os.environ["GOOGLE_CLOUD_PROJECT"] = "dummy-project"
@@ -623,6 +624,93 @@ async def test_show_phone_otp_verify_widget() -> None:
     with context_session(ctx):
         await show_phone_otp_verify_widget()
         ctx.show_widget.assert_called_once_with("phone_otp_verify_widget")
+
+
+@pytest.mark.asyncio
+async def test_fetch_phone_details() -> None:
+    ctx = RemoteContext(user_id="guest_user")
+    ctx.show_widget = MagicMock()
+    with context_session(ctx):
+        await fetch_phone_details()
+        ctx.show_widget.assert_called_once_with("fetch_phone_details")
+
+
+@pytest.mark.asyncio
+async def test_send_mobile_otp_saves_pending_mobile() -> None:
+    ctx = RemoteContext(user_id="guest_user")
+    ctx.show_widget = MagicMock()
+    class MockSession:
+        def __init__(self):
+            self.state = {}
+    ctx.session = MockSession()
+    with context_session(ctx):
+        res = await send_mobile_otp("+15550199000")
+        assert res["status"] == "success"
+        assert ctx.session.state["pending_mobile"] == "+15550199000"
+        ctx.show_widget.assert_called_once_with("otp_verify_widget")
+
+
+@pytest.mark.asyncio
+async def test_verify_mobile_otp_with_session_state_fallback() -> None:
+    ctx = RemoteContext(user_id="guest_user")
+    ctx.close_widget = MagicMock()
+    class MockSession:
+        def __init__(self):
+            self.state = {"pending_mobile": "+15550199000"}
+    ctx.session = MockSession()
+    with context_session(ctx):
+        # Call verify_mobile_otp with only otp_code (as sent by otp_verify_widget)
+        res = await verify_mobile_otp(otp_code="123456")
+        assert res["valid"] is True
+        assert ctx.session.state["verified_mobile"] == "+15550199000"
+        ctx.close_widget.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_guest_status_check_flow_after_otp_verification() -> None:
+    ctx = RemoteContext(user_id="guest_user")
+    ctx.show_widget = MagicMock()
+    ctx.close_widget = MagicMock()
+    class MockSession:
+        def __init__(self):
+            self.state = {}
+    ctx.session = MockSession()
+    with context_session(ctx):
+        # Setup: Create a lead with unique phone +15550199888
+        org_res = await save_org_details("Acme Corp", "Tech startup", "acme.com", "CTO")
+        org_id = org_res["org_id"]
+        await associate_contact_and_alert(
+            org_id=org_id,
+            contact_email="cto@acme.com",
+            contact_mobile="+15550199888",
+            full_name="Jane Doe"
+        )
+        
+        # Step 1: Initial check_session for guest returns invalid
+        init_sess = await check_session()
+        assert init_sess["session_valid"] is False
+        
+        # Step 2: Show phone input widget
+        await fetch_phone_details()
+        ctx.show_widget.assert_called_with("fetch_phone_details")
+        
+        # Step 3: User submits phone -> send_mobile_otp queues otp_verify_widget
+        send_res = await send_mobile_otp("+15550199888")
+        assert send_res["status"] == "success"
+        assert ctx.session.state["pending_mobile"] == "+15550199888"
+        ctx.show_widget.assert_called_with("otp_verify_widget")
+        
+        # Step 4: User submits OTP in otp_verify_widget -> calls verify_mobile_otp
+        verify_res = await verify_mobile_otp(otp_code="123456")
+        assert verify_res["valid"] is True
+        assert ctx.session.state["verified_mobile"] == "+15550199888"
+        
+        # Step 5: Agent calls check_session -> session is now valid and returns Acme Corp!
+        final_sess = await check_session()
+        assert final_sess["session_valid"] is True
+        linked = final_sess["user_data"]["linked_organizations"]
+        assert any(org["org_name"] == "Acme Corp" and org["status"] == "OPEN" for org in linked)
+
 
 
 

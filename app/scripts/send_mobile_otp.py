@@ -24,6 +24,12 @@ async def send_mobile_otp(mobile_number: str, skip_widget: bool = False) -> dict
 
     ctx = get_context()
     try:
+        if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
+            ctx.session.state["pending_mobile"] = mobile_number
+    except Exception:
+        pass
+
+    try:
         res = ctx.send_otp(mobile_number)
         if not res.get("success"):
             print(f"⚠️ Live OTP dispatch returned non-success: {res.get('message')}. Falling back to dev code 123456.")

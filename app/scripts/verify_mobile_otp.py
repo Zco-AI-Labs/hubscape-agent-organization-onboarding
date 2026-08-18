@@ -3,14 +3,18 @@ import json
 from app.core.hubscape_adk import get_context, require_tool_privilege
 
 @require_tool_privilege
-async def verify_mobile_otp(mobile_number: str, otp_code: str) -> dict:
+async def verify_mobile_otp(mobile_number: str = "", otp_code: str = "") -> dict:
     """
     Validates the 6-digit OTP code entered by the user.
 
     Args:
-        mobile_number: The personal mobile number associated with the code.
+        mobile_number: The personal mobile number associated with the code (optional if stored in session).
         otp_code: The 6-digit verification code.
     """
+    ctx = get_context()
+    if (not mobile_number or mobile_number.strip() == "") and hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
+        mobile_number = ctx.session.state.get("pending_mobile") or ""
+
     clean_phone = "".join(filter(str.isdigit, mobile_number))
     has_country = True
     if len(clean_phone) >= 10:
@@ -24,7 +28,6 @@ async def verify_mobile_otp(mobile_number: str, otp_code: str) -> dict:
 
     # Save verified mobile number in session state
     try:
-        ctx = get_context()
         if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
             ctx.session.state["verified_mobile"] = mobile_number
     except Exception:
@@ -32,6 +35,10 @@ async def verify_mobile_otp(mobile_number: str, otp_code: str) -> dict:
 
     # 1. Development & Testing OTP Fallback
     if otp_code.strip() == "123456":
+        try:
+            ctx.close_widget(result_text="✅ OTP verification successful.")
+        except Exception:
+            pass
         return {
             "valid": True,
             "message": "OTP verification successful."
@@ -39,15 +46,22 @@ async def verify_mobile_otp(mobile_number: str, otp_code: str) -> dict:
 
     # 2. Live SMS Gateway Verification with 123456 Fallback
     try:
-        ctx = get_context()
         res = ctx.verify_otp(mobile_number, otp_code)
         if res.get("success"):
+            try:
+                ctx.close_widget(result_text="✅ OTP verification successful.")
+            except Exception:
+                pass
             return {
                 "valid": True,
                 "message": "OTP verification successful."
             }
     except Exception:
         if otp_code.strip() == "123456":
+            try:
+                ctx.close_widget(result_text="✅ OTP verification successful.")
+            except Exception:
+                pass
             return {
                 "valid": True,
                 "message": "OTP verification successful."
