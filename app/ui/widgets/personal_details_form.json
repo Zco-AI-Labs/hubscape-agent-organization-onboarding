@@ -35,7 +35,7 @@
       "type": "button",
       "props": {
         "label": "Submit Contact Details",
-        "actionUrl": "agent://sales-onboarding-agent/submit_personal",
+        "actionUrl": "agent://sales-onboarding-agent/save_personal_details",
         "styling": {
           "colorTheme": "pink"
         }

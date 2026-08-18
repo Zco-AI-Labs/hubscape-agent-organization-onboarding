@@ -3,7 +3,7 @@ import json
 from app.core.hubscape_adk import get_context, require_tool_privilege
 
 @require_tool_privilege
-async def verify_mobile_otp(mobile_number: str = "", otp_code: str = "") -> dict:
+async def check_mobile_otp(mobile_number: str = "", otp_code: str = "") -> dict:
     """
     Validates the 6-digit OTP code entered by the user.
 

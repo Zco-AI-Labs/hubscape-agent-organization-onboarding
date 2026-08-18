@@ -5,7 +5,7 @@ import re
 from app.core.hubscape_adk import get_context, require_tool_privilege
 
 @require_tool_privilege
-async def submit_personal(
+async def save_personal_details(
     full_name: str,
     contact_email: str,
     mobile_number: str = None,

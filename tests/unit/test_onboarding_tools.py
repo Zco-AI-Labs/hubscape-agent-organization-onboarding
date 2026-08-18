@@ -7,15 +7,14 @@ from app.core.hubscape_adk import RemoteContext, context_session
 # Import tools
 from app.scripts.save_org_details import save_org_details
 from app.scripts.check_session import check_session
-from app.scripts.check_mobile_exist import check_mobile_exist
 from app.scripts.send_mobile_otp import send_mobile_otp
-from app.scripts.verify_mobile_otp import verify_mobile_otp
+from app.scripts.check_mobile_otp import check_mobile_otp
 from app.scripts.associate_contact_and_alert import associate_contact_and_alert
 from app.scripts.show_org_details_form import show_org_details_form
 from app.scripts.show_otp_verify_widget import show_otp_verify_widget
 from app.scripts.show_personal_details_widget import show_personal_details_widget
 from app.scripts.show_contact_form import show_contact_form
-from app.scripts.submit_personal import submit_personal
+from app.scripts.save_personal_details import save_personal_details
 from app.scripts.save_phone_details import save_phone_details
 
 # Mock default GCP credentials and project settings
@@ -202,21 +201,6 @@ async def test_check_session_invalid() -> None:
         assert res["session_valid"] is False
 
 @pytest.mark.asyncio
-async def test_check_mobile_exist_success() -> None:
-    ctx = RemoteContext(user_id="guest_user")
-    with context_session(ctx):
-        res = await check_mobile_exist("555-0199")
-        assert res["exists"] is True
-        assert res["user"]["full_name"] == "Alex Doe"
-
-@pytest.mark.asyncio
-async def test_check_mobile_exist_failure() -> None:
-    ctx = RemoteContext(user_id="guest_user")
-    with context_session(ctx):
-        res = await check_mobile_exist("555-9999")
-        assert res["exists"] is False
-
-@pytest.mark.asyncio
 async def test_send_and_verify_otp() -> None:
     ctx = RemoteContext(user_id="guest_user")
     with context_session(ctx):
@@ -225,11 +209,11 @@ async def test_send_and_verify_otp() -> None:
         assert send_res["status"] == "success"
         
         # Verify success
-        verify_res = await verify_mobile_otp("555-0199", "123456")
+        verify_res = await check_mobile_otp("555-0199", "123456")
         assert verify_res["valid"] is True
         
         # Verify failure
-        verify_fail = await verify_mobile_otp("555-0199", "wrong")
+        verify_fail = await check_mobile_otp("555-0199", "wrong")
         assert verify_fail["valid"] is False
 
 @pytest.mark.asyncio
@@ -274,18 +258,11 @@ async def test_associate_contact_and_alert() -> None:
 async def test_mobile_normalization() -> None:
     ctx = RemoteContext(user_id="guest_user")
     with context_session(ctx):
-        # check mobile existence with different formats
-        res1 = await check_mobile_exist("+1 (555) 0199")
-        assert res1["exists"] is True
-        
-        res2 = await check_mobile_exist("555-0199")
-        assert res2["exists"] is True
-        
         # verify OTP handling normalizes formatting
         send_res = await send_mobile_otp("+1 (555) 0199")
         assert send_res["status"] == "success"
         
-        verify_res = await verify_mobile_otp("555-0199", "123456")
+        verify_res = await check_mobile_otp("555-0199", "123456")
         assert verify_res["valid"] is True
 
 @pytest.mark.asyncio
@@ -377,7 +354,7 @@ async def test_send_otp_invalid_phone() -> None:
 async def test_verify_otp_invalid_phone() -> None:
     ctx = RemoteContext(user_id="guest_user")
     with context_session(ctx):
-        res = await verify_mobile_otp("12345", "123456")
+        res = await check_mobile_otp("12345", "123456")
         assert res["valid"] is False
         assert "Invalid mobile number format" in res["message"]
 
@@ -423,7 +400,7 @@ async def test_show_widget_tools() -> None:
         assert res5["status"] == "success"
 
 @pytest.mark.asyncio
-async def test_submit_personal_success() -> None:
+async def test_save_personal_details_success() -> None:
     ctx = RemoteContext(user_id="guest_user")
     ctx.show_widget = MagicMock()
     with context_session(ctx):
@@ -432,7 +409,7 @@ async def test_submit_personal_success() -> None:
         org_id = org_res["org_id"]
         
         # 2. Submit personal details
-        res = await submit_personal("Alex Doe", "alex@apex.com", org_id=org_id)
+        res = await save_personal_details("Alex Doe", "alex@apex.com", org_id=org_id)
         assert res["status"] == "success"
         
         # 3. Verify lead document is updated
@@ -450,23 +427,23 @@ async def test_submit_personal_success() -> None:
         })
 
 @pytest.mark.asyncio
-async def test_submit_personal_invalid_email() -> None:
+async def test_save_personal_details_invalid_email() -> None:
     ctx = RemoteContext(user_id="guest_user")
     with context_session(ctx):
-        res = await submit_personal("Alex Doe", "invalid-email", "some_org_id")
+        res = await save_personal_details("Alex Doe", "invalid-email", "some_org_id")
         assert res["status"] == "error"
         assert "Invalid contact email format" in res["message"]
 
 @pytest.mark.asyncio
-async def test_submit_personal_not_found() -> None:
+async def test_save_personal_details_not_found() -> None:
     ctx = RemoteContext(user_id="guest_user")
     with context_session(ctx):
-        res = await submit_personal("Alex Doe", "alex@apex.com", org_id="nonexistent_org_id")
+        res = await save_personal_details("Alex Doe", "alex@apex.com", org_id="nonexistent_org_id")
         assert res["status"] == "error"
         assert "Lead record nonexistent_org_id not found" in res["message"]
 
 @pytest.mark.asyncio
-async def test_submit_personal_fallback() -> None:
+async def test_save_personal_details_fallback() -> None:
     ctx = RemoteContext(user_id="guest_user")
     ctx.show_widget = MagicMock()
     # Create mock session object
@@ -484,7 +461,7 @@ async def test_submit_personal_fallback() -> None:
         assert ctx.session.state["active_org_id"] == org_id
         
         # 3. Submit personal details with org_id omitted to test fallback
-        res = await submit_personal("Alex Doe", "alex@apex.com")
+        res = await save_personal_details("Alex Doe", "alex@apex.com")
         assert res["status"] == "success"
         
         # 4. Verify lead document is updated
@@ -494,7 +471,7 @@ async def test_submit_personal_fallback() -> None:
         assert lead["status"] == "ASSOCIATED"
 
 @pytest.mark.asyncio
-async def test_submit_personal_combined_flow() -> None:
+async def test_save_personal_details_combined_flow() -> None:
     ctx = RemoteContext(user_id="guest_user")
     ctx.show_widget = MagicMock()
     # Create mock session object
@@ -509,7 +486,7 @@ async def test_submit_personal_combined_flow() -> None:
         org_id = org_res["org_id"]
         
         # 2. Submit combined personal & mobile details
-        res = await submit_personal("Alex Doe", "alex@apex.com", "555-9999", org_id)
+        res = await save_personal_details("Alex Doe", "alex@apex.com", "555-9999", org_id)
         assert res["status"] == "success"
         
         # 3. Verify lead email & name are saved, status is UNVERIFIED
@@ -542,7 +519,7 @@ async def test_submit_personal_combined_flow() -> None:
 
 
 @pytest.mark.asyncio
-async def test_verify_mobile_otp_returns_linked_orgs_success() -> None:
+async def test_check_mobile_otp_returns_linked_orgs_success() -> None:
     ctx = RemoteContext(user_id="guest_user")
     class MockSession:
         def __init__(self):
@@ -562,7 +539,7 @@ async def test_verify_mobile_otp_returns_linked_orgs_success() -> None:
         )
         
         # 3. Verify OTP and fetch statuses
-        res = await verify_mobile_otp(mobile_number="+15550199000", otp_code="123456")
+        res = await check_mobile_otp(mobile_number="+15550199000", otp_code="123456")
         assert res["valid"] is True
         assert "Identity verified successfully" in res["message"]
         assert len(res["linked_organizations"]) > 0
@@ -574,7 +551,7 @@ async def test_verify_mobile_otp_returns_linked_orgs_success() -> None:
 
 
 @pytest.mark.asyncio
-async def test_verify_mobile_otp_sales_status_override() -> None:
+async def test_check_mobile_otp_sales_status_override() -> None:
     ctx = RemoteContext(user_id="guest_user")
     class MockSession:
         def __init__(self):
@@ -599,7 +576,7 @@ async def test_verify_mobile_otp_sales_status_override() -> None:
         ctx.save(scope="platform", collection_name="leads", doc_id=org_id, data=lead)
         
         # 4. Verify OTP and check returned status is COMPLETED
-        res = await verify_mobile_otp(mobile_number="+15550199001", otp_code="123456")
+        res = await check_mobile_otp(mobile_number="+15550199001", otp_code="123456")
         assert res["valid"] is True
         assert len(res["linked_organizations"]) > 0
         assert res["linked_organizations"][0]["org_name"] == "Test Override Org"
@@ -607,10 +584,10 @@ async def test_verify_mobile_otp_sales_status_override() -> None:
 
 
 @pytest.mark.asyncio
-async def test_verify_mobile_otp_invalid_code() -> None:
+async def test_check_mobile_otp_invalid_code() -> None:
     ctx = RemoteContext(user_id="guest_user")
     with context_session(ctx):
-        res = await verify_mobile_otp(mobile_number="+15550199000", otp_code="wrong_code")
+        res = await check_mobile_otp(mobile_number="+15550199000", otp_code="wrong_code")
         assert res["valid"] is False
         assert "Invalid verification code" in res["message"]
 
@@ -640,7 +617,7 @@ async def test_send_mobile_otp_saves_pending_mobile() -> None:
 
 
 @pytest.mark.asyncio
-async def test_verify_mobile_otp_with_session_state_fallback() -> None:
+async def test_check_mobile_otp_with_session_state_fallback() -> None:
     ctx = RemoteContext(user_id="guest_user")
     ctx.close_widget = MagicMock()
     class MockSession:
@@ -648,8 +625,8 @@ async def test_verify_mobile_otp_with_session_state_fallback() -> None:
             self.state = {"pending_mobile": "+15550199000"}
     ctx.session = MockSession()
     with context_session(ctx):
-        # Call verify_mobile_otp with only otp_code (as sent by otp_verify_widget)
-        res = await verify_mobile_otp(otp_code="123456")
+        # Call check_mobile_otp with only otp_code (as sent by otp_verify_widget)
+        res = await check_mobile_otp(otp_code="123456")
         assert res["valid"] is True
         assert ctx.session.state["verified_mobile"] == "+15550199000"
         ctx.close_widget.assert_called_once()
@@ -689,8 +666,8 @@ async def test_guest_status_check_flow_after_otp_verification() -> None:
         assert ctx.session.state["pending_mobile"] == "+15550199888"
         ctx.show_widget.assert_called_with("otp_verify_form")
         
-        # Step 4: User submits OTP in otp_verify_widget -> calls verify_mobile_otp
-        verify_res = await verify_mobile_otp(otp_code="123456")
+        # Step 4: User submits OTP in otp_verify_widget -> calls check_mobile_otp
+        verify_res = await check_mobile_otp(otp_code="123456")
         assert verify_res["valid"] is True
         assert ctx.session.state["verified_mobile"] == "+15550199888"
         assert "linked_organizations" in verify_res

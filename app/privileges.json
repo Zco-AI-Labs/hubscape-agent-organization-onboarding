@@ -6,16 +6,14 @@
       "tools": [
         "save_org_details",
         "check_session",
-        "check_mobile_exist",
         "send_mobile_otp",
-        "verify_mobile_otp",
+        "check_mobile_otp",
         "associate_contact_and_alert",
         "show_org_details_form",
         "show_otp_verify_widget",
         "show_personal_details_widget",
         "show_contact_form",
-        "submit_personal",
-        "close_widget",
+        "save_personal_details",
         "save_phone_details"
       ]
     }
