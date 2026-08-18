@@ -34,7 +34,7 @@ If the user asks to check the status of their organization/subscription (e.g., "
    - STOP immediately and wait for the user to enter and submit the verification code in the widget. Do NOT call verify_mobile_otp or check_session in this turn.
 
 3. When the user submits the verification code (Turn 3 - message starts with "/action verify_mobile_otp" or provides an OTP code):
-   - You MUST call the verify_mobile_otp tool with the provided otp_code.
+   - You MUST call the verify_mobile_otp tool with the mobile_number (from the previous turn/context) and the provided otp_code (e.g. verify_mobile_otp(mobile_number="+11231231234", otp_code="123456")).
    - After verify_mobile_otp succeeds, call check_session to retrieve the user's linked organizations.
    - Check if "linked_organizations" list is returned in user_data:
      - If yes and list is not empty:

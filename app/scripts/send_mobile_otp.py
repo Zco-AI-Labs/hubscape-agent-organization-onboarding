@@ -30,6 +30,22 @@ async def send_mobile_otp(mobile_number: str, skip_widget: bool = False) -> dict
         pass
 
     try:
+        session_id = (
+            getattr(ctx.auth, "session_id", None)
+            or (getattr(ctx, "raw_context", {}) or {}).get("sessionId")
+            or (getattr(ctx, "raw_context", {}) or {}).get("session_id")
+            or f"session_{ctx.auth.get_user_id()}_{ctx.auth.hub_id}"
+        )
+        ctx.save(
+            scope="platform",
+            collection_name="pending_otps",
+            doc_id=session_id,
+            data={"mobile_number": mobile_number}
+        )
+    except Exception as e:
+        print(f"⚠️ Non-critical: Failed to save pending OTP doc: {e}")
+
+    try:
         res = ctx.send_otp(mobile_number)
         if not res.get("success"):
             print(f"⚠️ Live OTP dispatch returned non-success: {res.get('message')}. Falling back to dev code 123456.")

@@ -12,8 +12,50 @@ async def verify_mobile_otp(mobile_number: str = "", otp_code: str = "") -> dict
         otp_code: The 6-digit verification code.
     """
     ctx = get_context()
+    import re
+    
+    # 1. Fallback: Resolve mobile number from session state
     if (not mobile_number or mobile_number.strip() == "") and hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
         mobile_number = ctx.session.state.get("pending_mobile") or ""
+
+    # 2. Fallback: Resolve mobile number from pending_otps collection in platform database
+    if not mobile_number or mobile_number.strip() == "":
+        try:
+            session_id = (
+                getattr(ctx.auth, "session_id", None)
+                or (getattr(ctx, "raw_context", {}) or {}).get("sessionId")
+                or (getattr(ctx, "raw_context", {}) or {}).get("session_id")
+                or f"session_{ctx.auth.get_user_id()}_{ctx.auth.hub_id}"
+            )
+            otp_doc = ctx.get(scope="platform", collection_name="pending_otps", doc_id=session_id)
+            if otp_doc:
+                mobile_number = otp_doc.get("mobile_number") or ""
+        except Exception:
+            pass
+
+    # 3. Fallback: Resolve mobile number from session event history
+    if not mobile_number or mobile_number.strip() == "":
+        try:
+            if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "events") and ctx.session.events:
+                for ev in reversed(ctx.session.events):
+                    content = getattr(ev, "content", None)
+                    if content and hasattr(content, "parts"):
+                        for p in content.parts:
+                            text = getattr(p, "text", "") or ""
+                            m = re.search(r"(\+\d{10,15})", text)
+                            if m:
+                                mobile_number = m.group(1)
+                                break
+                            fc = getattr(p, "function_call", None)
+                            if fc and getattr(fc, "name", "") == "send_mobile_otp":
+                                args = getattr(fc, "args", {}) or {}
+                                if args.get("mobile_number"):
+                                    mobile_number = str(args.get("mobile_number"))
+                                    break
+                    if mobile_number:
+                        break
+        except Exception:
+            pass
 
     clean_phone = "".join(filter(str.isdigit, mobile_number))
     has_country = True
@@ -26,12 +68,28 @@ async def verify_mobile_otp(mobile_number: str = "", otp_code: str = "") -> dict
             "message": "Invalid mobile number format. Please include your country code starting with '+' (e.g. +919876543210 or +15550199000)."
         }
 
-    # Save verified mobile number in session state
+    # Save verified mobile number in session state & platform database
     try:
         if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
             ctx.session.state["verified_mobile"] = mobile_number
     except Exception:
         pass
+
+    try:
+        session_id = (
+            getattr(ctx.auth, "session_id", None)
+            or (getattr(ctx, "raw_context", {}) or {}).get("sessionId")
+            or (getattr(ctx, "raw_context", {}) or {}).get("session_id")
+            or f"session_{ctx.auth.get_user_id()}_{ctx.auth.hub_id}"
+        )
+        ctx.save(
+            scope="platform",
+            collection_name="verified_sessions",
+            doc_id=session_id,
+            data={"verified_mobile": mobile_number}
+        )
+    except Exception as e:
+        print(f"⚠️ Non-critical: Failed to save verified session doc: {e}")
 
     # 1. Development & Testing OTP Fallback
     if otp_code.strip() == "123456":

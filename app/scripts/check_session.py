@@ -22,10 +22,24 @@ async def check_session() -> dict:
 
     mock_session = cfg.get("active_session") if cfg else None
             
-    # Check if user has verified mobile in current session state
+    # Check if user has verified mobile in current session state or platform database
     verified_mobile = ""
     if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
         verified_mobile = ctx.session.state.get("verified_mobile", "")
+
+    if not verified_mobile:
+        try:
+            session_id = (
+                getattr(ctx.auth, "session_id", None)
+                or (getattr(ctx, "raw_context", {}) or {}).get("sessionId")
+                or (getattr(ctx, "raw_context", {}) or {}).get("session_id")
+                or f"session_{ctx.auth.get_user_id()}_{ctx.auth.hub_id}"
+            )
+            v_doc = ctx.get(scope="platform", collection_name="verified_sessions", doc_id=session_id)
+            if v_doc:
+                verified_mobile = v_doc.get("verified_mobile", "")
+        except Exception:
+            pass
 
     # If active_session is explicitly set to True in database, or mobile is verified in session, override and force it as valid
     if mock_session == True or verified_mobile:
