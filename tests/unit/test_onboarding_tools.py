@@ -16,9 +16,6 @@ from app.scripts.show_otp_verify_widget import show_otp_verify_widget
 from app.scripts.show_personal_details_widget import show_personal_details_widget
 from app.scripts.show_contact_form import show_contact_form
 from app.scripts.submit_personal import submit_personal
-from app.scripts.verify_otp_and_fetch_status import verify_otp_and_fetch_status
-from app.scripts.show_phone_otp_verify_widget import show_phone_otp_verify_widget
-from app.scripts.fetch_phone_details import fetch_phone_details
 from app.scripts.save_phone_details import save_phone_details
 
 # Mock default GCP credentials and project settings
@@ -414,11 +411,11 @@ async def test_show_widget_tools() -> None:
         assert res1["status"] == "success"
 
         res3 = await show_otp_verify_widget()
-        ctx.show_widget.assert_called_with("otp_verify_widget")
+        ctx.show_widget.assert_called_with("otp_verify")
         assert res3["status"] == "success"
 
         res4 = await show_personal_details_widget()
-        ctx.show_widget.assert_called_with("personal_details_widget")
+        ctx.show_widget.assert_called_with("personal_details")
         assert res4["status"] == "success"
 
         res5 = await show_contact_form()
@@ -526,8 +523,8 @@ async def test_submit_personal_combined_flow() -> None:
         # 4. Verify mobile is held in session state
         assert ctx.session.state["pending_mobile"] == "555-9999"
         
-        # 5. Verify otp_verify_widget is queued
-        ctx.show_widget.assert_any_call("otp_verify_widget")
+        # 5. Verify otp_verify widget is queued
+        ctx.show_widget.assert_any_call("otp_verify")
         
         # 6. Verify completing OTP and associate contact
         assoc_res = await associate_contact_and_alert(
@@ -545,7 +542,7 @@ async def test_submit_personal_combined_flow() -> None:
 
 
 @pytest.mark.asyncio
-async def test_verify_otp_and_fetch_status_success() -> None:
+async def test_verify_mobile_otp_returns_linked_orgs_success() -> None:
     ctx = RemoteContext(user_id="guest_user")
     class MockSession:
         def __init__(self):
@@ -565,9 +562,9 @@ async def test_verify_otp_and_fetch_status_success() -> None:
         )
         
         # 3. Verify OTP and fetch statuses
-        res = await verify_otp_and_fetch_status("+15550199000", "123456")
-        assert res["status"] == "success"
-        assert res["message"] == "Identity verified successfully."
+        res = await verify_mobile_otp(mobile_number="+15550199000", otp_code="123456")
+        assert res["valid"] is True
+        assert "Identity verified successfully" in res["message"]
         assert len(res["linked_organizations"]) > 0
         assert res["linked_organizations"][0]["org_name"] == "Test Org"
         assert res["linked_organizations"][0]["status"] == "OPEN"
@@ -577,7 +574,7 @@ async def test_verify_otp_and_fetch_status_success() -> None:
 
 
 @pytest.mark.asyncio
-async def test_verify_otp_and_fetch_status_sales_status_override() -> None:
+async def test_verify_mobile_otp_sales_status_override() -> None:
     ctx = RemoteContext(user_id="guest_user")
     class MockSession:
         def __init__(self):
@@ -602,38 +599,29 @@ async def test_verify_otp_and_fetch_status_sales_status_override() -> None:
         ctx.save(scope="platform", collection_name="leads", doc_id=org_id, data=lead)
         
         # 4. Verify OTP and check returned status is COMPLETED
-        res = await verify_otp_and_fetch_status("+15550199001", "123456")
-        assert res["status"] == "success"
+        res = await verify_mobile_otp(mobile_number="+15550199001", otp_code="123456")
+        assert res["valid"] is True
         assert len(res["linked_organizations"]) > 0
         assert res["linked_organizations"][0]["org_name"] == "Test Override Org"
         assert res["linked_organizations"][0]["status"] == "COMPLETED"
 
 
 @pytest.mark.asyncio
-async def test_verify_otp_and_fetch_status_invalid_otp() -> None:
+async def test_verify_mobile_otp_invalid_code() -> None:
     ctx = RemoteContext(user_id="guest_user")
     with context_session(ctx):
-        res = await verify_otp_and_fetch_status("+15550199000", "wrong_code")
-        assert res["status"] == "error"
+        res = await verify_mobile_otp(mobile_number="+15550199000", otp_code="wrong_code")
+        assert res["valid"] is False
         assert "Invalid verification code" in res["message"]
 
 
 @pytest.mark.asyncio
-async def test_show_phone_otp_verify_widget() -> None:
+async def test_save_phone_details() -> None:
     ctx = RemoteContext(user_id="guest_user")
     ctx.show_widget = MagicMock()
     with context_session(ctx):
-        await show_phone_otp_verify_widget()
-        ctx.show_widget.assert_called_once_with("phone_otp_verify_widget")
-
-
-@pytest.mark.asyncio
-async def test_fetch_phone_details() -> None:
-    ctx = RemoteContext(user_id="guest_user")
-    ctx.show_widget = MagicMock()
-    with context_session(ctx):
-        await fetch_phone_details()
-        ctx.show_widget.assert_called_once_with("fetch_phone_details")
+        await save_phone_details()
+        ctx.show_widget.assert_called_once_with("phone_details")
 
 
 @pytest.mark.asyncio
@@ -648,7 +636,7 @@ async def test_send_mobile_otp_saves_pending_mobile() -> None:
         res = await send_mobile_otp("+15550199000")
         assert res["status"] == "success"
         assert ctx.session.state["pending_mobile"] == "+15550199000"
-        ctx.show_widget.assert_called_once_with("otp_verify_widget")
+        ctx.show_widget.assert_called_once_with("otp_verify")
 
 
 @pytest.mark.asyncio
@@ -693,13 +681,13 @@ async def test_guest_status_check_flow_after_otp_verification() -> None:
         
         # Step 2: Show phone input widget using save_phone_details
         await save_phone_details()
-        ctx.show_widget.assert_called_with("save_phone_details")
+        ctx.show_widget.assert_called_with("phone_details")
         
-        # Step 3: User submits phone -> send_mobile_otp queues otp_verify_widget
+        # Step 3: User submits phone -> send_mobile_otp queues otp_verify
         send_res = await send_mobile_otp("+15550199888")
         assert send_res["status"] == "success"
         assert ctx.session.state["pending_mobile"] == "+15550199888"
-        ctx.show_widget.assert_called_with("otp_verify_widget")
+        ctx.show_widget.assert_called_with("otp_verify")
         
         # Step 4: User submits OTP in otp_verify_widget -> calls verify_mobile_otp
         verify_res = await verify_mobile_otp(otp_code="123456")

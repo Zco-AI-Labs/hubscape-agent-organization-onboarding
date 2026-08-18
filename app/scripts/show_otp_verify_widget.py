@@ -6,4 +6,4 @@ async def show_otp_verify_widget() -> dict:
     Renders the OTP verification code input widget in the user interface.
     """
     ctx = get_context()
-    return ctx.show_widget("otp_verify_widget")
+    return ctx.show_widget("otp_verify")

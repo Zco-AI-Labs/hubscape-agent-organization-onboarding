@@ -8,4 +8,4 @@ async def save_phone_details() -> dict:
     You must STOP your turn after calling this tool and wait for the user to submit their phone number.
     """
     ctx = get_context()
-    return ctx.show_widget("save_phone_details")
+    return ctx.show_widget("phone_details")

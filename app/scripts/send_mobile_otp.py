@@ -55,7 +55,7 @@ async def send_mobile_otp(mobile_number: str, skip_widget: bool = False) -> dict
     # Queue rendering the OTP verify widget for code entry
     if not skip_widget:
         try:
-            ctx.show_widget("otp_verify_widget")
+            ctx.show_widget("otp_verify")
         except Exception as w_err:
             print(f"⚠️ [WIDGET QUEUE WARNING] Failed to queue OTP verify widget: {w_err}")
 
