@@ -19,6 +19,7 @@ from app.scripts.submit_personal import submit_personal
 from app.scripts.verify_otp_and_fetch_status import verify_otp_and_fetch_status
 from app.scripts.show_phone_otp_verify_widget import show_phone_otp_verify_widget
 from app.scripts.fetch_phone_details import fetch_phone_details
+from app.scripts.save_phone_details import save_phone_details
 
 # Mock default GCP credentials and project settings
 os.environ["GOOGLE_CLOUD_PROJECT"] = "dummy-project"
@@ -690,9 +691,9 @@ async def test_guest_status_check_flow_after_otp_verification() -> None:
         init_sess = await check_session()
         assert init_sess["session_valid"] is False
         
-        # Step 2: Show phone input widget
-        await fetch_phone_details()
-        ctx.show_widget.assert_called_with("fetch_phone_details")
+        # Step 2: Show phone input widget using save_phone_details
+        await save_phone_details()
+        ctx.show_widget.assert_called_with("save_phone_details")
         
         # Step 3: User submits phone -> send_mobile_otp queues otp_verify_widget
         send_res = await send_mobile_otp("+15550199888")
@@ -704,6 +705,8 @@ async def test_guest_status_check_flow_after_otp_verification() -> None:
         verify_res = await verify_mobile_otp(otp_code="123456")
         assert verify_res["valid"] is True
         assert ctx.session.state["verified_mobile"] == "+15550199888"
+        assert "linked_organizations" in verify_res
+        assert any(org["org_name"] == "Acme Corp" and org["status"] == "OPEN" for org in verify_res["linked_organizations"])
         
         # Step 5: Agent calls check_session -> session is now valid and returns Acme Corp!
         final_sess = await check_session()

@@ -19,7 +19,8 @@
         "verify_otp_and_fetch_status",
         "show_phone_otp_verify_widget",
         "fetch_phone_details",
-        "show_fetch_phone_details"
+        "show_fetch_phone_details",
+        "save_phone_details"
       ]
     }
   }

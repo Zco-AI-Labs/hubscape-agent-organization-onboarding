@@ -91,15 +91,36 @@ async def verify_mobile_otp(mobile_number: str = "", otp_code: str = "") -> dict
     except Exception as e:
         print(f"⚠️ Non-critical: Failed to save verified session doc: {e}")
 
+    def get_linked_organizations() -> list:
+        def normalize_phone(num: str) -> str:
+            clean = "".join(filter(str.isdigit, num))
+            if (len(clean) == 11 or len(clean) == 8) and clean.startswith("1"):
+                clean = clean[1:]
+            return clean
+
+        input_num = normalize_phone(mobile_number)
+        leads = ctx.list(scope="platform", collection_name="leads")
+        linked_orgs = []
+        for lead in leads:
+            lead_num = normalize_phone(lead.get("contact_mobile") or "")
+            if lead_num == input_num:
+                linked_orgs.append({
+                    "org_name": lead.get("org_name"),
+                    "status": lead.get("sales_status") or "OPEN"
+                })
+        return linked_orgs
+
     # 1. Development & Testing OTP Fallback
     if otp_code.strip() == "123456":
         try:
             ctx.close_widget(result_text="✅ OTP verification successful.")
         except Exception:
             pass
+        linked_orgs = get_linked_organizations()
         return {
             "valid": True,
-            "message": "OTP verification successful."
+            "message": "OTP verification successful. Identity verified successfully.",
+            "linked_organizations": linked_orgs
         }
 
     # 2. Live SMS Gateway Verification with 123456 Fallback
@@ -110,9 +131,11 @@ async def verify_mobile_otp(mobile_number: str = "", otp_code: str = "") -> dict
                 ctx.close_widget(result_text="✅ OTP verification successful.")
             except Exception:
                 pass
+            linked_orgs = get_linked_organizations()
             return {
                 "valid": True,
-                "message": "OTP verification successful."
+                "message": "OTP verification successful. Identity verified successfully.",
+                "linked_organizations": linked_orgs
             }
     except Exception:
         if otp_code.strip() == "123456":
@@ -120,9 +143,11 @@ async def verify_mobile_otp(mobile_number: str = "", otp_code: str = "") -> dict
                 ctx.close_widget(result_text="✅ OTP verification successful.")
             except Exception:
                 pass
+            linked_orgs = get_linked_organizations()
             return {
                 "valid": True,
-                "message": "OTP verification successful."
+                "message": "OTP verification successful. Identity verified successfully.",
+                "linked_organizations": linked_orgs
             }
 
     return {
