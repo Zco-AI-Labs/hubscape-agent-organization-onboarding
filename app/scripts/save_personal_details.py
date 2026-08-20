@@ -123,12 +123,6 @@ async def save_personal_details(
 
         ctx.save(scope="platform", collection_name="leads", doc_id=org_id, data=lead)
 
-    # Close active contact details form widget
-    try:
-        ctx.close_widget(result_text=f"✅ Contact details for '{full_name}' saved successfully.")
-    except Exception as e:
-        print(f"⚠️ [WIDGET CLOSE WARNING] Failed to close active widget: {e}")
-
     # Save mobile number in session state & trigger OTP if provided
     if mobile_number:
         if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:

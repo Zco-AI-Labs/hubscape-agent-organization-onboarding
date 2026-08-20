@@ -20,7 +20,8 @@
         "actionUrl": "agent://sales-onboarding-agent/check_mobile_otp",
         "styling": {
           "colorTheme": "blue"
-        }
+        },
+        "submittedLabel": "OTP Verified"
       }
     },
     {
@@ -30,7 +31,8 @@
         "actionUrl": "client://close_widget?text=Form+cancelled",
         "styling": {
           "colorTheme": "slate"
-        }
+        },
+        "hideOnSubmit": true
       }
     }
   ]

@@ -53,7 +53,8 @@
         "actionUrl": "agent://sales-onboarding-agent/save_org_details",
         "styling": {
           "colorTheme": "indigo"
-        }
+        },
+        "submittedLabel": "Details Submitted"
       }
     },
     {
@@ -63,7 +64,8 @@
         "actionUrl": "client://close_widget?text=Form+cancelled",
         "styling": {
           "colorTheme": "slate"
-        }
+        },
+        "hideOnSubmit": true
       }
     }
   ]
