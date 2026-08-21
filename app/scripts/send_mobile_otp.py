@@ -32,6 +32,21 @@ async def send_mobile_otp(mobile_number: str, skip_widget: bool = False) -> dict
         pass
 
     try:
+        user_key = f"sess_{ctx.auth.get_user_id()}"
+        existing_sess = ctx.get(scope="platform", collection_name="active_sessions", doc_id=user_key) or {}
+        active_flow = existing_sess.get("active_flow")
+        if active_flow != "onboarding":
+            active_flow = "status_check"
+        ctx.save(
+            scope="platform",
+            collection_name="active_sessions",
+            doc_id=user_key,
+            data={"pending_mobile": mobile_number, "active_flow": active_flow}
+        )
+    except Exception as sess_err:
+        print(f"⚠️ [SESSION SAVE WARNING] Failed to persist send_mobile_otp session: {sess_err}")
+
+    try:
         session_id = (
             getattr(ctx.auth, "session_id", None)
             or (getattr(ctx, "raw_context", {}) or {}).get("sessionId")

@@ -100,10 +100,21 @@ async def save_org_details(
         except Exception as e:
             print(f"⚠️ [ALERT WARNING] Failed to create sales alert: {e}")
 
-    # Save generated ID to session state for multi-turn access
+    # Save generated ID to session state and persistent platform active_sessions for multi-turn access
     if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
         ctx.session.state["active_org_id"] = org_id
         ctx.session.state["active_flow"] = "onboarding"
+
+    try:
+        user_key = f"sess_{ctx.auth.get_user_id()}"
+        ctx.save(
+            scope="platform",
+            collection_name="active_sessions",
+            doc_id=user_key,
+            data={"active_org_id": org_id, "active_flow": "onboarding"}
+        )
+    except Exception as sess_err:
+        print(f"⚠️ [SESSION SAVE WARNING] Failed to persist active session: {sess_err}")
 
     # Queue rendering the appropriate widget based on auth track
     try:

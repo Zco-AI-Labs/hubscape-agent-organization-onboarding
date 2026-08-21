@@ -130,6 +130,17 @@ async def save_personal_details(
             ctx.session.state["active_flow"] = "onboarding"
             if org_id:
                 ctx.session.state["active_org_id"] = org_id
+
+        try:
+            user_key = f"sess_{ctx.auth.get_user_id()}"
+            ctx.save(
+                scope="platform",
+                collection_name="active_sessions",
+                doc_id=user_key,
+                data={"pending_mobile": mobile_number, "active_flow": "onboarding", "active_org_id": org_id or ""}
+            )
+        except Exception as sess_err:
+            print(f"⚠️ [SESSION SAVE WARNING] Failed to persist personal active session: {sess_err}")
             
         # Send OTP
         try:

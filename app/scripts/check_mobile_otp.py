@@ -18,9 +18,20 @@ async def check_mobile_otp(mobile_number: str = "", otp_code: str = "") -> dict:
     ctx = get_context()
     import re
     
-    # 1. Fallback: Resolve mobile number from session state
-    if (not mobile_number or mobile_number.strip() == "") and hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
-        mobile_number = ctx.session.state.get("pending_mobile") or ""
+    # 0. Retrieve persistent active session data from platform store
+    user_key = f"sess_{ctx.auth.get_user_id()}"
+    active_session_data = {}
+    try:
+        active_session_data = ctx.get(scope="platform", collection_name="active_sessions", doc_id=user_key) or {}
+    except Exception as sess_get_err:
+        print(f"⚠️ Non-critical: Failed to retrieve active session: {sess_get_err}")
+
+    # 1. Fallback: Resolve mobile number from session state or active session document
+    if not mobile_number or mobile_number.strip() == "":
+        if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
+            mobile_number = ctx.session.state.get("pending_mobile") or ""
+        if not mobile_number:
+            mobile_number = active_session_data.get("pending_mobile") or ""
 
     # 2. Fallback: Resolve mobile number from pending_otps collection in platform database
     if not mobile_number or mobile_number.strip() == "":
@@ -137,12 +148,14 @@ async def check_mobile_otp(mobile_number: str = "", otp_code: str = "") -> dict:
                 })
         return linked_orgs
 
-    # Determine flow: check if in Onboarding flow with an unassociated lead
-    active_flow = None
-    active_org_id = None
+    # Determine flow: check session state or active session store
+    active_flow = active_session_data.get("active_flow")
+    active_org_id = active_session_data.get("active_org_id")
     if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
-        active_flow = ctx.session.state.get("active_flow")
-        active_org_id = ctx.session.state.get("active_org_id")
+        if not active_flow:
+            active_flow = ctx.session.state.get("active_flow")
+        if not active_org_id:
+            active_org_id = ctx.session.state.get("active_org_id")
 
     # FLOW A: SUBSCRIPTION ONBOARDING FLOW
     if (active_flow == "onboarding" or active_org_id):
@@ -201,6 +214,11 @@ async def check_mobile_otp(mobile_number: str = "", otp_code: str = "") -> dict:
                 ctx.session.state.pop("active_org_id", None)
                 ctx.session.state.pop("active_flow", None)
 
+            try:
+                ctx.delete(scope="platform", collection_name="active_sessions", doc_id=user_key)
+            except Exception:
+                pass
+
             linked_orgs = get_linked_organizations()
             return {
                 "valid": True,
@@ -214,6 +232,11 @@ async def check_mobile_otp(mobile_number: str = "", otp_code: str = "") -> dict:
     # FLOW B: STATUS CHECK FLOW
     try:
         ctx.close_widget(result_text="✅ OTP verification successful.")
+    except Exception:
+        pass
+
+    try:
+        ctx.delete(scope="platform", collection_name="active_sessions", doc_id=user_key)
     except Exception:
         pass
 
