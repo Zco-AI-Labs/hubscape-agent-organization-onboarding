@@ -1,11 +1,15 @@
 import os
 import json
+import time
+import datetime
 from app.core.hubscape_adk import get_context, require_tool_privilege
 
 @require_tool_privilege
 async def check_mobile_otp(mobile_number: str = "", otp_code: str = "") -> dict:
     """
     Validates the 6-digit OTP code entered by the user.
+    If in an onboarding flow, automatically associates contact details and renders the Organization Summary Card.
+    If in a status check flow, returns the list of matching linked organizations.
 
     Args:
         mobile_number: The personal mobile number associated with the code (optional if stored in session).
@@ -68,6 +72,27 @@ async def check_mobile_otp(mobile_number: str = "", otp_code: str = "") -> dict:
             "message": "Invalid mobile number format. Please include your country code starting with '+' (e.g. +919876543210 or +15550199000)."
         }
 
+    # Verify OTP code (123456 dev code or live SMS gateway)
+    is_valid = False
+    if otp_code.strip() == "123456":
+        is_valid = True
+    else:
+        try:
+            res = ctx.verify_otp(mobile_number, otp_code)
+            if res.get("success"):
+                is_valid = True
+            elif otp_code.strip() == "123456":
+                is_valid = True
+        except Exception:
+            if otp_code.strip() == "123456":
+                is_valid = True
+
+    if not is_valid:
+        return {
+            "valid": False,
+            "message": "Invalid verification code. Please check and try again."
+        }
+
     # Save verified mobile number in session state & platform database
     try:
         if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
@@ -91,66 +116,111 @@ async def check_mobile_otp(mobile_number: str = "", otp_code: str = "") -> dict:
     except Exception as e:
         print(f"⚠️ Non-critical: Failed to save verified session doc: {e}")
 
-    def get_linked_organizations() -> list:
-        def normalize_phone(num: str) -> str:
-            clean = "".join(filter(str.isdigit, num))
-            if (len(clean) == 11 or len(clean) == 8) and clean.startswith("1"):
-                clean = clean[1:]
-            return clean
+    def normalize_phone(num: str) -> str:
+        clean = "".join(filter(str.isdigit, num))
+        if (len(clean) == 11 or len(clean) == 8) and clean.startswith("1"):
+            clean = clean[1:]
+        return clean
 
-        input_num = normalize_phone(mobile_number)
+    clean_mobile = normalize_phone(mobile_number)
+
+    def get_linked_organizations() -> list:
+        input_num = clean_mobile
         leads = ctx.list(scope="platform", collection_name="leads")
         linked_orgs = []
-        for lead in leads:
-            lead_num = normalize_phone(lead.get("contact_mobile") or "")
+        for l in leads:
+            lead_num = normalize_phone(l.get("contact_mobile") or "")
             if lead_num == input_num:
                 linked_orgs.append({
-                    "org_name": lead.get("org_name"),
-                    "status": lead.get("sales_status") or "OPEN"
+                    "org_name": l.get("org_name"),
+                    "status": l.get("sales_status") or "OPEN"
                 })
         return linked_orgs
 
-    # 1. Development & Testing OTP Fallback
-    if otp_code.strip() == "123456":
-        try:
-            ctx.close_widget(result_text="✅ OTP verification successful.")
-        except Exception:
-            pass
-        linked_orgs = get_linked_organizations()
-        return {
-            "valid": True,
-            "message": "OTP verification successful. Identity verified successfully.",
-            "linked_organizations": linked_orgs
-        }
+    # Determine flow: check if in Onboarding flow with an unassociated lead
+    active_flow = None
+    active_org_id = None
+    if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
+        active_flow = ctx.session.state.get("active_flow")
+        active_org_id = ctx.session.state.get("active_org_id")
 
-    # 2. Live SMS Gateway Verification with 123456 Fallback
+    # FLOW A: SUBSCRIPTION ONBOARDING FLOW
+    if (active_flow == "onboarding" or active_org_id):
+        org_id = active_org_id
+        lead = ctx.get(scope="platform", collection_name="leads", doc_id=org_id) if org_id else None
+        
+        if lead and lead.get("status") != "ASSOCIATED":
+            lead["contact_mobile"] = clean_mobile
+            lead["status"] = "ASSOCIATED"
+            
+            user_id = ctx.auth.get_user_id()
+            is_authenticated = bool(
+                user_id
+                and not user_id.startswith("guest")
+                and not user_id.startswith("anonymous")
+                and user_id not in ("dummy_user", "default_user", "dev-user-123")
+                and not (len(user_id) == 28 and re.match(r"^[A-Za-z0-9]+$", user_id))
+            )
+            if is_authenticated:
+                lead["owner_id"] = user_id
+            elif lead.get("owner_id") is None:
+                lead["owner_id"] = "anonymous"
+
+            ctx.save(scope="platform", collection_name="leads", doc_id=org_id, data=lead)
+
+            # Add Sales Representative alert log
+            try:
+                alert_id = f"alert_{int(time.time())}"
+                alert_msg = f"New unverified lead has arrived for organization '{lead.get('org_name')}'."
+                ctx.save(
+                    scope="platform",
+                    collection_name="sales_alerts",
+                    doc_id=alert_id,
+                    data={
+                        "lead_id": org_id,
+                        "message": alert_msg,
+                        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
+                    }
+                )
+            except Exception as a_err:
+                print(f"⚠️ [ALERT WARNING] Failed to create sales alert: {a_err}")
+
+            # Queue rendering the summary card widget!
+            summary_data = {
+                "summary_name": lead.get("org_name"),
+                "summary_description": lead.get("org_description"),
+                "summary_website": lead.get("org_website"),
+                "summary_position": lead.get("user_position")
+            }
+            try:
+                ctx.show_widget("org_summary_card", data=summary_data)
+            except Exception as w_err:
+                print(f"⚠️ [WIDGET QUEUE WARNING] Failed to queue summary widget: {w_err}")
+
+            if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
+                ctx.session.state.pop("active_org_id", None)
+                ctx.session.state.pop("active_flow", None)
+
+            linked_orgs = get_linked_organizations()
+            return {
+                "valid": True,
+                "flow": "onboarding",
+                "org_id": org_id,
+                "org_name": lead.get("org_name"),
+                "message": f"Identity verified and organization '{lead.get('org_name')}' subscription request submitted successfully.",
+                "linked_organizations": linked_orgs
+            }
+
+    # FLOW B: STATUS CHECK FLOW
     try:
-        res = ctx.verify_otp(mobile_number, otp_code)
-        if res.get("success"):
-            try:
-                ctx.close_widget(result_text="✅ OTP verification successful.")
-            except Exception:
-                pass
-            linked_orgs = get_linked_organizations()
-            return {
-                "valid": True,
-                "message": "OTP verification successful. Identity verified successfully.",
-                "linked_organizations": linked_orgs
-            }
+        ctx.close_widget(result_text="✅ OTP verification successful.")
     except Exception:
-        if otp_code.strip() == "123456":
-            try:
-                ctx.close_widget(result_text="✅ OTP verification successful.")
-            except Exception:
-                pass
-            linked_orgs = get_linked_organizations()
-            return {
-                "valid": True,
-                "message": "OTP verification successful. Identity verified successfully.",
-                "linked_organizations": linked_orgs
-            }
+        pass
 
+    linked_orgs = get_linked_organizations()
     return {
-        "valid": False,
-        "message": "Invalid verification code. Please check and try again."
+        "valid": True,
+        "flow": "status_check",
+        "message": "OTP verification successful. Identity verified successfully.",
+        "linked_organizations": linked_orgs
     }

@@ -103,6 +103,7 @@ async def save_org_details(
     # Save generated ID to session state for multi-turn access
     if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
         ctx.session.state["active_org_id"] = org_id
+        ctx.session.state["active_flow"] = "onboarding"
 
     # Queue rendering the appropriate widget based on auth track
     try:

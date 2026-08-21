@@ -127,6 +127,9 @@ async def save_personal_details(
     if mobile_number:
         if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
             ctx.session.state["pending_mobile"] = mobile_number
+            ctx.session.state["active_flow"] = "onboarding"
+            if org_id:
+                ctx.session.state["active_org_id"] = org_id
             
         # Send OTP
         try:

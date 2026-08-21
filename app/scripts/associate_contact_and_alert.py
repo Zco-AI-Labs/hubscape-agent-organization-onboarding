@@ -129,6 +129,11 @@ async def associate_contact_and_alert(
         ctx.show_widget("org_summary_card", data=summary_data)
     except Exception as e:
         print(f"⚠️ [WIDGET QUEUE WARNING] Failed to queue summary widget: {e}")
+
+    # Clear session active onboarding state upon completion
+    if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
+        ctx.session.state.pop("active_org_id", None)
+        ctx.session.state.pop("active_flow", None)
         
     return {
         "status": "success",

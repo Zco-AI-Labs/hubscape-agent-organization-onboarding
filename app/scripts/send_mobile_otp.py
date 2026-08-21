@@ -26,6 +26,8 @@ async def send_mobile_otp(mobile_number: str, skip_widget: bool = False) -> dict
     try:
         if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
             ctx.session.state["pending_mobile"] = mobile_number
+            if ctx.session.state.get("active_flow") != "onboarding":
+                ctx.session.state["active_flow"] = "status_check"
     except Exception:
         pass
 
