@@ -629,7 +629,7 @@ async def test_check_mobile_otp_with_session_state_fallback() -> None:
         res = await check_mobile_otp(otp_code="123456")
         assert res["valid"] is True
         assert ctx.session.state["verified_mobile"] == "+15550199000"
-        ctx.close_widget.assert_called_once()
+        assert "linked_organizations" in res
 
 
 @pytest.mark.asyncio

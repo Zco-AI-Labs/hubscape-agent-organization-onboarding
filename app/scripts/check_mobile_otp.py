@@ -231,11 +231,6 @@ async def check_mobile_otp(mobile_number: str = "", otp_code: str = "") -> dict:
 
     # FLOW B: STATUS CHECK FLOW
     try:
-        ctx.close_widget(result_text="✅ OTP verification successful.")
-    except Exception:
-        pass
-
-    try:
         ctx.delete(scope="platform", collection_name="active_sessions", doc_id=user_key)
     except Exception:
         pass
