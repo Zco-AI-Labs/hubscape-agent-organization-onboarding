@@ -31,17 +31,25 @@ async def save_personal_details(
 
     ctx = get_context()
     
-    # Resolve active org_id: primary source is session state, fallback is tool parameter
+    # Resolve active org_id: primary source is session state, fallback is persistent session, then tool parameter
     resolved_org_id = None
     if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state:
         resolved_org_id = ctx.session.state.get("active_org_id")
         
     if not resolved_org_id:
+        try:
+            user_key = f"sess_{ctx.auth.get_user_id()}"
+            sess_doc = ctx.get(scope="platform", collection_name="active_sessions", doc_id=user_key) or {}
+            resolved_org_id = sess_doc.get("active_org_id")
+        except Exception:
+            pass
+
+    if not resolved_org_id:
         resolved_org_id = org_id
         
     org_id = resolved_org_id
 
-    # If mobile_number is provided, check if it's an existing user checking status
+    # If mobile_number is provided, validate format
     is_existing_user = False
     if mobile_number:
         clean_phone = "".join(filter(str.isdigit, mobile_number))
@@ -63,21 +71,22 @@ async def save_personal_details(
         
         input_num = normalize_phone(mobile_number)
         
-        # Check leads to see if user has already entered their contact info under this number
-        leads = ctx.list(scope="platform", collection_name="leads")
-        matching_lead = None
-        for lead in leads:
-            lead_num = normalize_phone(lead.get("contact_mobile") or "")
-            if lead_num == input_num:
-                matching_lead = lead
-                break
-                
-        if matching_lead:
-            is_existing_user = True
-            org_id = matching_lead.get("id")
-            if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
-                ctx.session.state["active_org_id"] = org_id
-                ctx.session.state["pending_mobile"] = mobile_number
+        # Only check existing leads if no active org_id exists from the current onboarding intake
+        if not org_id:
+            leads = ctx.list(scope="platform", collection_name="leads")
+            matching_lead = None
+            for lead in leads:
+                lead_num = normalize_phone(lead.get("contact_mobile") or "")
+                if lead_num == input_num:
+                    matching_lead = lead
+                    break
+                    
+            if matching_lead:
+                is_existing_user = True
+                org_id = matching_lead.get("id")
+                if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
+                    ctx.session.state["active_org_id"] = org_id
+                    ctx.session.state["pending_mobile"] = mobile_number
 
     if not org_id and not is_existing_user:
         return {
