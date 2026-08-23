@@ -179,7 +179,10 @@ async def test_save_org_details_authenticated() -> None:
                 "summary_name": "Apex Robotics",
                 "summary_description": "Making robots",
                 "summary_website": "apexrobotics.com",
-                "summary_position": "CFO"
+                "summary_position": "CFO",
+                "summary_contact_name": "Alex Doe",
+                "summary_contact_email": "alex@apex.com",
+                "summary_contact_phone": "+15550199"
             }
         )
 
@@ -250,7 +253,10 @@ async def test_associate_contact_and_alert() -> None:
                 "summary_name": "Apex",
                 "summary_description": "Robotics",
                 "summary_website": "apex.com",
-                "summary_position": "CEO"
+                "summary_position": "CEO",
+                "summary_contact_name": "Alex Doe",
+                "summary_contact_email": "alex@apex.com",
+                "summary_contact_phone": "5550199"
             }
         )
 
@@ -423,7 +429,10 @@ async def test_save_personal_details_success() -> None:
             "summary_name": "Apex Pizza",
             "summary_description": "Best Pizza",
             "summary_website": "apex.com",
-            "summary_position": "Manager"
+            "summary_position": "Manager",
+            "summary_contact_name": "Alex Doe",
+            "summary_contact_email": "alex@apex.com",
+            "summary_contact_phone": ""
         })
 
 @pytest.mark.asyncio

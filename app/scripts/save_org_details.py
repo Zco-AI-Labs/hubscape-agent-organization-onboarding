@@ -123,7 +123,10 @@ async def save_org_details(
                 "summary_name": org_name,
                 "summary_description": org_description,
                 "summary_website": website_clean,
-                "summary_position": user_position
+                "summary_position": user_position,
+                "summary_contact_name": contact_name or "",
+                "summary_contact_email": contact_email or "",
+                "summary_contact_phone": contact_mobile or ""
             }
             ctx.show_widget("org_summary_card", data=summary_data)
         else:

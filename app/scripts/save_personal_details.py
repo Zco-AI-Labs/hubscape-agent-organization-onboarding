@@ -173,10 +173,13 @@ async def save_personal_details(
 
     # Queue rendering the summary card widget (for old fallback / no mobile cases)
     summary_data = {
-        "summary_name": lead.get("org_name") if lead else "",
-        "summary_description": lead.get("org_description") if lead else "",
-        "summary_website": lead.get("org_website") if lead else "",
-        "summary_position": lead.get("user_position") if lead else ""
+        "summary_name": (lead.get("org_name") if lead else "") or "",
+        "summary_description": (lead.get("org_description") if lead else "") or "",
+        "summary_website": (lead.get("org_website") if lead else "") or "",
+        "summary_position": (lead.get("user_position") if lead else "") or "",
+        "summary_contact_name": (lead.get("contact_name") if lead else "") or full_name or "",
+        "summary_contact_email": (lead.get("contact_email") if lead else "") or contact_email or "",
+        "summary_contact_phone": (lead.get("contact_mobile") if lead else "") or mobile_number or ""
     }
     try:
         ctx.show_widget("org_summary_card", data=summary_data)

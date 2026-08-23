@@ -200,10 +200,13 @@ async def check_mobile_otp(mobile_number: str = "", otp_code: str = "") -> dict:
 
             # Queue rendering the summary card widget!
             summary_data = {
-                "summary_name": lead.get("org_name"),
-                "summary_description": lead.get("org_description"),
-                "summary_website": lead.get("org_website"),
-                "summary_position": lead.get("user_position")
+                "summary_name": lead.get("org_name") or "",
+                "summary_description": lead.get("org_description") or "",
+                "summary_website": lead.get("org_website") or "",
+                "summary_position": lead.get("user_position") or "",
+                "summary_contact_name": lead.get("contact_name") or "",
+                "summary_contact_email": lead.get("contact_email") or "",
+                "summary_contact_phone": lead.get("contact_mobile") or clean_mobile or mobile_number or ""
             }
             try:
                 ctx.show_widget("org_summary_card", data=summary_data)

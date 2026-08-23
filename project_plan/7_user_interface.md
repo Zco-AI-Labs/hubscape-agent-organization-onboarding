@@ -185,52 +185,47 @@ These standard Lego block widget configurations are saved inside the agent packa
 
 ### Widget 5: `org_summary_card`
 *   **Type:** `detail-card`
-*   **Theme Token Default:** `green`
+*   **Theme Token Default:** `slate`
 *   **Layout JSON Structure:**
 ```json
 // app/ui/widgets/org_summary_card.json
 {
   "type": "container",
   "props": {
-    "className": "flex flex-col gap-4 p-5 bg-emerald-50 dark:bg-emerald-950 rounded-xl border border-emerald-200 dark:border-emerald-800 shadow-sm"
+    "className": "flex flex-col gap-4 p-5 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 shadow-md"
   },
   "children": [
     {
       "type": "text",
       "props": {
-        "text": "Organization Summary Card",
-        "size": "lg",
-        "weight": "bold",
-        "className": "text-emerald-900 dark:text-emerald-100"
+        "text": "Organization Summary",
+        "className": "text-slate-900 dark:text-slate-100 font-bold text-lg"
       }
     },
     {
       "type": "container",
       "props": {
-        "className": "grid grid-cols-2 gap-3 bg-white dark:bg-slate-900 p-4 rounded-lg border border-emerald-100 dark:border-slate-800"
+        "className": "flex flex-col gap-4 border-none dark:border-none bg-transparent dark:bg-transparent shadow-none p-0"
       },
       "children": [
         {
           "type": "container",
           "props": {
-            "className": "flex flex-col"
+            "className": "flex flex-col gap-1 border-none dark:border-none bg-transparent dark:bg-transparent shadow-none p-0"
           },
           "children": [
             {
               "type": "text",
               "props": {
                 "text": "Legal Name",
-                "size": "xs",
-                "className": "text-slate-400 dark:text-slate-500 font-medium"
+                "className": "text-xs text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider"
               }
             },
             {
               "type": "text",
               "props": {
                 "text": "{{summary_name}}",
-                "size": "sm",
-                "weight": "medium",
-                "className": "text-slate-800 dark:text-slate-200"
+                "className": "text-sm text-slate-800 dark:text-slate-200 font-normal"
               }
             }
           ]
@@ -238,24 +233,43 @@ These standard Lego block widget configurations are saved inside the agent packa
         {
           "type": "container",
           "props": {
-            "className": "flex flex-col"
+            "className": "flex flex-col gap-1 border-none dark:border-none bg-transparent dark:bg-transparent shadow-none p-0"
+          },
+          "children": [
+            {
+              "type": "text",
+              "props": {
+                "text": "Position / Title",
+                "className": "text-xs text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider"
+              }
+            },
+            {
+              "type": "text",
+              "props": {
+                "text": "{{summary_position}}",
+                "className": "text-sm text-slate-800 dark:text-slate-200 font-normal"
+              }
+            }
+          ]
+        },
+        {
+          "type": "container",
+          "props": {
+            "className": "flex flex-col gap-1 border-none dark:border-none bg-transparent dark:bg-transparent shadow-none p-0"
           },
           "children": [
             {
               "type": "text",
               "props": {
                 "text": "Description",
-                "size": "xs",
-                "className": "text-slate-400 dark:text-slate-500 font-medium"
+                "className": "text-xs text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider"
               }
             },
             {
               "type": "text",
               "props": {
                 "text": "{{summary_description}}",
-                "size": "sm",
-                "weight": "medium",
-                "className": "text-slate-800 dark:text-slate-200"
+                "className": "text-sm text-slate-800 dark:text-slate-200 font-normal"
               }
             }
           ]
@@ -263,24 +277,87 @@ These standard Lego block widget configurations are saved inside the agent packa
         {
           "type": "container",
           "props": {
-            "className": "flex flex-col col-span-2"
+            "className": "flex flex-col gap-1 border-none dark:border-none bg-transparent dark:bg-transparent shadow-none p-0"
           },
           "children": [
             {
               "type": "text",
               "props": {
                 "text": "Website",
-                "size": "xs",
-                "className": "text-slate-400 dark:text-slate-500 font-medium"
+                "className": "text-xs text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider"
               }
             },
             {
               "type": "text",
               "props": {
                 "text": "{{summary_website}}",
-                "size": "sm",
-                "weight": "medium",
-                "className": "text-slate-850 dark:text-slate-200"
+                "className": "text-sm text-slate-800 dark:text-slate-200 font-normal"
+              }
+            }
+          ]
+        },
+        {
+          "type": "container",
+          "props": {
+            "className": "flex flex-col gap-1 border-none dark:border-none bg-transparent dark:bg-transparent shadow-none p-0"
+          },
+          "children": [
+            {
+              "type": "text",
+              "props": {
+                "text": "Full Name",
+                "className": "text-xs text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider"
+              }
+            },
+            {
+              "type": "text",
+              "props": {
+                "text": "{{summary_contact_name}}",
+                "className": "text-sm text-slate-800 dark:text-slate-200 font-normal"
+              }
+            }
+          ]
+        },
+        {
+          "type": "container",
+          "props": {
+            "className": "flex flex-col gap-1 border-none dark:border-none bg-transparent dark:bg-transparent shadow-none p-0"
+          },
+          "children": [
+            {
+              "type": "text",
+              "props": {
+                "text": "Email",
+                "className": "text-xs text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider"
+              }
+            },
+            {
+              "type": "text",
+              "props": {
+                "text": "{{summary_contact_email}}",
+                "className": "text-sm text-slate-800 dark:text-slate-200 font-normal"
+              }
+            }
+          ]
+        },
+        {
+          "type": "container",
+          "props": {
+            "className": "flex flex-col gap-1 border-none dark:border-none bg-transparent dark:bg-transparent shadow-none p-0"
+          },
+          "children": [
+            {
+              "type": "text",
+              "props": {
+                "text": "Phone",
+                "className": "text-xs text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider"
+              }
+            },
+            {
+              "type": "text",
+              "props": {
+                "text": "{{summary_contact_phone}}",
+                "className": "text-sm text-slate-800 dark:text-slate-200 font-normal"
               }
             }
           ]
