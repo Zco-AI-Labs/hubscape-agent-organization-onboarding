@@ -39,7 +39,8 @@
         "styling": {
           "colorTheme": "pink"
         },
-        "submittedLabel": "Contact Details Submitted"
+        "submittedLabel": "Contact Details Submitted",
+        "closeOnClick": true
       }
     },
     {

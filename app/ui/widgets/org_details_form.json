@@ -54,7 +54,8 @@
         "styling": {
           "colorTheme": "indigo"
         },
-        "submittedLabel": "Details Submitted"
+        "submittedLabel": "Details Submitted",
+        "closeOnClick": true
       }
     },
     {
