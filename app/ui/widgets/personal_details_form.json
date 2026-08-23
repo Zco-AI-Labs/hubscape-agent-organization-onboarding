@@ -47,7 +47,7 @@
       "type": "button",
       "props": {
         "label": "Cancel",
-        "actionUrl": "client://close_widget?text=Form+cancelled",
+        "actionUrl": "client://close_widget?text=Contact+details+form+cancelled.",
         "styling": {
           "colorTheme": "slate"
         },
