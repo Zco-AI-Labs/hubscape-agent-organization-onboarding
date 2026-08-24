@@ -21,7 +21,7 @@
         "styling": {
           "colorTheme": "blue"
         },
-        "submittedLabel": "Code Sent",
+        "submittedLabel": "Thank you for providing your phone number! We've texted you a verification code.",
         "closeOnClick": true
       }
     },

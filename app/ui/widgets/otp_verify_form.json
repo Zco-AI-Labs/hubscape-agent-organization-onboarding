@@ -21,7 +21,7 @@
         "styling": {
           "colorTheme": "blue"
         },
-        "submittedLabel": "OTP Verified",
+        "submittedLabel": "Recieved Verification Code",
         "closeOnClick": true
       }
     },
