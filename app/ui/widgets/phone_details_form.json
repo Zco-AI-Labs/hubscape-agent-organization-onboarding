@@ -21,7 +21,8 @@
         "styling": {
           "colorTheme": "blue"
         },
-        "submittedLabel": "Code Sent"
+        "submittedLabel": "Code Sent",
+        "closeOnClick": true
       }
     },
     {

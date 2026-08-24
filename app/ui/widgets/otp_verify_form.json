@@ -21,7 +21,8 @@
         "styling": {
           "colorTheme": "blue"
         },
-        "submittedLabel": "OTP Verified"
+        "submittedLabel": "OTP Verified",
+        "closeOnClick": true
       }
     },
     {
