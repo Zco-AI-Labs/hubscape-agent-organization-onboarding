@@ -278,8 +278,12 @@ class RemoteContext:
             with open(template_path, "r", encoding="utf-8") as f:
                 widget_config = json.load(f)
 
-            # Replacements (e.g. {{agent_id}} -> actual agent ID)
+            # Replacements (e.g. {{agent_id}} -> actual agent ID, {{data.key}} -> data values)
             config_str = json.dumps(widget_config).replace("{{agent_id}}", self.agent_id)
+            if data and isinstance(data, dict):
+                for k, v in data.items():
+                    if v is not None:
+                        config_str = config_str.replace(f"{{{{data.{k}}}}}", str(v))
             widget_config = json.loads(config_str)
 
             action_payload = {
