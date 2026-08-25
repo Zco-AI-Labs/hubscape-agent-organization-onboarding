@@ -48,6 +48,32 @@ class RemoteContext:
         return self.raw_context.get("user_privileges") or self.raw_context.get("userPrivileges") or []
 
     @property
+    def base_url(self) -> str:
+        return (
+            self.raw_context.get("base_url")
+            or self.raw_context.get("backend_url")
+            or os.environ.get("BASE_URL")
+            or os.environ.get("HUBSCAPE_BASE_URL")
+            or os.environ.get("HUBSCAPE_BACKEND_URL")
+            or "https://hubscape-geap.web.app"
+        ).rstrip("/")
+
+    @property
+    def api_url(self) -> str:
+        env_api = self.raw_context.get("api_url") or os.environ.get("API_URL") or os.environ.get("HUBSCAPE_API_URL")
+        if env_api:
+            return env_api.rstrip("/")
+        return f"{self.base_url}/api/apis"
+
+    @property
+    def agent_url(self) -> str:
+        env_agent = self.raw_context.get("agent_url") or os.environ.get("AGENT_URL") or os.environ.get("HUBSCAPE_AGENT_URL")
+        if env_agent:
+            return env_agent.rstrip("/")
+        return f"{self.base_url}/api/agents"
+
+
+    @property
     def _db_client(self):
         if self._db is None:
             # Try to get OAuth2 token from Metadata Server
@@ -375,9 +401,9 @@ class RemoteContext:
         import httpx
         
         is_cloud = "K_SERVICE" in os.environ or "AIP_PREDICT_PORT" in os.environ
-        backend_url = self.raw_context.get("backend_url") or os.environ.get("HUBSCAPE_BACKEND_URL")
+        backend_url = self.base_url
         
-        if not is_cloud and not backend_url:
+        if not is_cloud and not (self.raw_context.get("backend_url") or os.environ.get("BASE_URL")):
             logger.warning(
                 f"⚠️ Local Dev Bypass: Simulating OTP SMS send to {phone_number}."
             )
@@ -387,7 +413,8 @@ class RemoteContext:
                 "message": "OTP SMS send simulated for local testing. Use code '123456' to verify."
             }
             
-        url = f"{str(backend_url or 'https://hubscape-backend-w3xi4ozhca-uc.a.run.app').rstrip('/')}/api/otp/send"
+        url = f"{backend_url}/api/otp/send"
+
         headers = {}
         cap_token = self.raw_context.get("capability_token")
         if cap_token:
@@ -411,9 +438,9 @@ class RemoteContext:
         import httpx
         
         is_cloud = "K_SERVICE" in os.environ or "AIP_PREDICT_PORT" in os.environ
-        backend_url = self.raw_context.get("backend_url") or os.environ.get("HUBSCAPE_BACKEND_URL")
+        backend_url = self.base_url
         
-        if not is_cloud and not backend_url:
+        if not is_cloud and not (self.raw_context.get("backend_url") or os.environ.get("BASE_URL")):
             logger.warning(
                 f"⚠️ Local Dev Bypass: Verifying simulated OTP for {phone_number}."
             )
@@ -421,7 +448,9 @@ class RemoteContext:
                 return {"success": True, "status": "verified", "message": "Simulated OTP verified successfully."}
             return {"success": False, "status": "invalid", "message": "Simulated OTP verification failed."}
             
-        url = f"{str(backend_url or 'https://hubscape-backend-w3xi4ozhca-uc.a.run.app').rstrip('/')}/api/otp/verify"
+        url = f"{backend_url}/api/otp/verify"
+
+
         headers = {}
         cap_token = self.raw_context.get("capability_token")
         if cap_token:
@@ -539,6 +568,31 @@ def get_context() -> RemoteContext:
             "No active RemoteContext found. "
             "Ensure the tool is executed inside an active context_session."
         )
+
+def get_base_url() -> str:
+    """Returns the platform base URL."""
+    try:
+        return get_context().base_url
+    except Exception:
+        from app.app_utils.env_resolver import get_base_url as _resolve_base_url
+        return _resolve_base_url()
+
+def get_api_url() -> str:
+    """Returns the Modular API gateway base URL ({API_URL}/{api_uuid}/*)."""
+    try:
+        return get_context().api_url
+    except Exception:
+        from app.app_utils.env_resolver import get_api_url as _resolve_api_url
+        return _resolve_api_url()
+
+def get_agent_url() -> str:
+    """Returns the Agent gateway / A2A base URL ({AGENT_URL}/{agent_id}/*)."""
+    try:
+        return get_context().agent_url
+    except Exception:
+        from app.app_utils.env_resolver import get_agent_url as _resolve_agent_url
+        return _resolve_agent_url()
+
 
 @contextlib.contextmanager
 def context_session(context: RemoteContext) -> Generator[None, None, None]:

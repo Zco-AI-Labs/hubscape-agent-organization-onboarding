@@ -60,21 +60,61 @@ Displays formatted text blocks.
 ---
 
 ## 🔘 3. Button (`button`)
-Renders a button. When clicked, it packages the input values of all elements inside its container parent and executes an HTTP POST to the specified `actionUrl`.
+Renders an interactive button. When clicked, it packages the input values of all elements inside its container parent and dispatches an action to the target `actionUrl`.
+
+> [!IMPORTANT]
+> **Atomic Viewport Rule:** Only ONE interactive form or widget can be active in the viewport at a time. The button props below control whether the widget transitions into a read-only receipt upon submission or immediately collapses.
 
 ### Props:
-* `label` (string): Button display text.
-* `actionUrl` (string): The target endpoint path (e.g., `/api/plugins/{{agent_id}}/save` or `agent://<action_name>`).
+* `label` (string): Button display text (default: `"Submit"`).
+* `actionUrl` (string): Target destination URL or protocol URI:
+  * `agent://<agent_id>/<action_name>`: Deterministically dispatches action to target agent without Host LLM ambiguity.
+  * `client://close_widget?text=...`: Immediately cancels and unmounts the widget client-side with 0 network calls.
+  * HTTP Endpoint: Standard POST path (e.g. `/api/plugins/{{agent_id}}/update_settings`).
+* `closeOnClick` (boolean): When `true`, performs an **instant 0ms optimistic collapse**, immediately unmounting the widget upon valid submission and displaying the confirmation text. When `false` or omitted, defaults to **Read-Only Receipt Mode** where the form locks in place.
+* `submittedLabel` (string): The confirmation text to display:
+  * In *Optimistic Collapse Mode* (`closeOnClick: true`), this text is displayed in the chat message in place of the collapsed form.
+  * In *Read-Only Receipt Mode*, this text is displayed inside the green status badge replacing the submit button.
+* `hideOnSubmit` (boolean): When `true`, this button is automatically hidden once the form has been submitted (ideal for Cancel/Dismiss buttons).
+* `styling` (object): Theme styling object (e.g. `{"colorTheme": "indigo" | "pink" | "blue" | "slate"}`).
 * `className` (string): Tailwind CSS utility styling classes.
 
-### Example JSON:
+### Example 1: Submit Button with Optimistic Collapse (`closeOnClick: true`)
 ```json
 {
   "type": "button",
   "props": {
-    "label": "Save Changes",
-    "actionUrl": "/api/plugins/{{agent_id}}/update_settings",
-    "className": "bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+    "label": "Submit Details",
+    "actionUrl": "agent://sales-onboarding-agent/save_org_details",
+    "styling": { "colorTheme": "indigo" },
+    "submittedLabel": "Details Submitted",
+    "closeOnClick": true
+  }
+}
+```
+
+### Example 2: Cancel Button with Instant Local Dismissal (`client://close_widget`)
+```json
+{
+  "type": "button",
+  "props": {
+    "label": "Cancel",
+    "actionUrl": "client://close_widget?text=Form+cancelled.",
+    "styling": { "colorTheme": "slate" },
+    "hideOnSubmit": true
+  }
+}
+```
+
+### Example 3: Submit Button with Read-Only Receipt Transition (Default)
+```json
+{
+  "type": "button",
+  "props": {
+    "label": "Confirm Order",
+    "actionUrl": "agent://order-agent/confirm_purchase",
+    "styling": { "colorTheme": "emerald" },
+    "submittedLabel": "Order Confirmed"
   }
 }
 ```

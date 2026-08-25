@@ -533,6 +533,21 @@ GEAP agents read, write, and delete documents within Firestore using a scoping p
 
 ## 📡 Agent-to-Agent (A2A) Delegation
 * **Standard Tool:** The central Host Orchestrator repository contains a standard `consultAgent` tool (`scripts/consult_agent.py`) that queries whitelisted subagents using a GCP service account token.
+
+---
+
+## 🌐 Modular API Gateway & Standard Environment Variables
+Hubscape Modular APIs (e.g. `api-qr-code`) are decoupled Cloud Run microservices routed through the central platform Gateway. Agents communicate with Modular APIs and the platform using three standard environment variables:
+
+| Variable | Default Value | Usage |
+| :--- | :--- | :--- |
+| `BASE_URL` | `https://hubscape-geap.web.app` | Main platform root domain for short links (`/q/{code}`) and deep links. |
+| `API_URL` | `https://hubscape-geap.web.app/api/apis` | Gateway route for calling Modular APIs (`{API_URL}/{api_uuid}/*`). |
+| `AGENT_URL` | `https://hubscape-geap.web.app/api/agents` | Gateway route for GEAP Agent sessions (`{AGENT_URL}/{agent_uuid}/*`). |
+
+* **Zero-Code Synthesized Tools:** Enabled Modular APIs automatically synthesize ADK-compatible tools at session runtime.
+* **Custom Tool Calls:** Programmatic tool scripts resolve `{API_URL}/{api_uuid}/{action}` and forward `X-Hubscape-Org`, `X-Hubscape-Hub`, and `X-Hubscape-User-ID` headers with a 30s timeout.
+
   > [!IMPORTANT]
   > **Critical Token Resolution Rule inside GEAP Containers:**
   > Inside a remote Vertex AI Reasoning Engine execution container, `google.auth.default()` resolves to the restricted OIDC Workload Identity credentials. While these credentials can authenticate internal model predictions, they are restricted from making general outbound GCP HTTP/REST requests (like calling other reasoning engines).

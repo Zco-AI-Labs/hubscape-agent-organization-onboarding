@@ -83,8 +83,60 @@ Never hardcode credentials or secrets inside repository files.
   ```python
   api_key = context.raw_context.get("secrets", {}).get("API_SECRET_KEY") or os.environ.get("API_SECRET_KEY")
   ```
-  This ensures compatibility with both the cloud environment secrets vault and local `.env` mock configuration keys.
+---
+
+## 4. Modular API Integration & Standard Environment Variables
+
+The Hubscape ecosystem supports standalone **Modular APIs** (e.g., `api-qr-code`). Agents can interact with Modular APIs either through platform-synthesized tool functions (automatic) or via direct programmatic HTTP calls in custom tools.
+
+### The 3-Variable Universal Standard
+
+All GEAP Agents and Modular APIs standardize around three environment variables:
+
+| Variable | Default Value | Context Property | Helper Function | Usage & Scope |
+| :--- | :--- | :--- | :--- | :--- |
+| `BASE_URL` | `https://hubscape-geap.web.app` | `ctx.base_url` | `get_base_url()` | Platform root domain. Used for public scanner links (`/q/{short_code}`) and deep links. |
+| `API_URL` | `https://hubscape-geap.web.app/api/apis` | `ctx.api_url` | `get_api_url()` | Gateway route for Modular API microservices (`{API_URL}/{api_uuid}/{endpoint}`). |
+| `AGENT_URL` | `https://hubscape-geap.web.app/api/agents` | `ctx.agent_url` | `get_agent_url()` | Gateway route for GEAP Agent sessions (`{AGENT_URL}/{agent_uuid}/*`). |
+
+### Example: Programmatic API Invocation in Custom Agent Tools
+
+```python
+import httpx
+from app.core.hubscape_adk import get_context
+
+def create_tracked_qr_code(target_url: str) -> dict:
+    """Generates a tracked QR code via the Modular QR API microservice."""
+    context = get_context()
+    
+    # 1. Resolve Gateway Endpoint dynamically (resolves localhost in dev, production gateway in cloud)
+    api_url = context.api_url
+    qr_api_uuid = "bf258f41-0afe-524d-8b15-66d84f8ee008"
+    endpoint = f"{api_url}/{qr_api_uuid}/create"
+    
+    # 2. Forward Verified Context Headers
+    headers = {
+        "X-Hubscape-Org": context.auth.org_id,
+        "X-Hubscape-Hub": context.auth.hub_id,
+        "X-Hubscape-User-ID": context.auth.get_user_id()
+    }
+    payload = {
+        "type": "url",
+        "context": {"url": target_url}
+    }
+    
+    # 3. Dispatch Call with Standard 30s Socket Timeout
+    response = httpx.post(endpoint, json=payload, headers=headers, timeout=30.0)
+    return response.json()
+```
+
+### Dev-to-Production Portability
+By utilizing `context.api_url` (or `get_api_url()`), agent tools require **zero code changes** when promoting from local testing to production:
+* **Local Dev (`.env`):** `BASE_URL=http://localhost:8000` ➡️ `context.api_url` evaluates to `http://localhost:8000/api/apis`.
+* **Production (GEAP):** Platform injects production base ➡️ `context.api_url` evaluates to `https://hubscape-geap.web.app/api/apis`.
 
 ---
 
 [Next Chapter: GEAP Developer Workflow](CHAPTER_9_GEAP_DEVELOPER_WORKFLOW.md) | [Previous Chapter: OAuth Integration & Hubscape ADK API](CHAPTER_7_OAUTH_INTEGRATION_AND_ADK_API.md)
+
+

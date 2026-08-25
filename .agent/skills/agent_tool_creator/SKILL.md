@@ -232,4 +232,67 @@ def parse_user_date(date_str: str) -> dict:
             "traceback": tb
         }
 ```
+
+---
+
+### Archetype D: Modular API Client Tool (Invoking Microservices via `API_URL`)
+
+Use this pattern when an agent tool programmatically calls a Hubscape Modular API microservice (e.g. `api-qr-code`).
+
+```python
+import os
+import logging
+import traceback
+import httpx
+import hubscape_adk
+
+logger = logging.getLogger(__name__)
+
+def generate_campaign_qr_code(campaign_url: str) -> dict:
+    """Generates a tracked Hubscape QR code via the Modular QR API.
+
+    Args:
+        campaign_url: The destination URL the QR code will redirect to.
+    """
+    try:
+        # 1. Retrieve RemoteContext & Audit Caller
+        context = hubscape_adk.get_context()
+        user_id = context.auth.get_user_id()
+        logger.info(f"User '{user_id}' requested campaign QR for '{campaign_url}'")
+        
+        # 2. Resolve Gateway Endpoint via Standard API_URL (resolves dev or prod dynamically)
+        api_url = context.api_url
+        qr_api_uuid = "bf258f41-0afe-524d-8b15-66d84f8ee008"
+        endpoint = f"{api_url}/{qr_api_uuid}/create"
+        
+        # 3. Forward Verified Context Headers
+        headers = {
+            "X-Hubscape-Org": context.auth.org_id,
+            "X-Hubscape-Hub": context.auth.hub_id,
+            "X-Hubscape-User-ID": user_id
+        }
+        payload = {
+            "type": "url",
+            "context": {"url": campaign_url}
+        }
+        
+        # 4. Dispatch Call with Standard 30s Socket Timeout
+        response = httpx.post(endpoint, json=payload, headers=headers, timeout=30.0)
+        data = response.json()
+        
+        if response.status_code != 200:
+            return {"status": "error", "message": data.get("detail", "API invocation failed")}
+            
+        return {
+            "status": "success",
+            "short_url": data.get("short_url"),
+            "short_code": data.get("short_code"),
+            "qr_id": data.get("id")
+        }
+    except Exception as e:
+        tb = traceback.format_exc()
+        logger.error(f"Failed to generate QR code: {e}\n{tb}")
+        return {"status": "error", "message": str(e), "traceback": tb}
+```
+
 ```

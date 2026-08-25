@@ -117,7 +117,21 @@ Always prefer using the high-level Firestore scope CRUD helpers:
 
 ---
 
+## 🌐 Modular API Integration & Standard Environment Variables
+
+Hubscape Modular APIs (such as `api-qr-code`) are decoupled microservices accessible through the platform Gateway. Agents interact using three standard environment variables:
+
+| Variable | Default Value | Context Property | Helper Function | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `BASE_URL` | `https://hubscape-geap.web.app` | `ctx.base_url` | `get_base_url()` | Main platform root domain. Used for public short links (`/q/{short_code}`) and deep links. |
+| `API_URL` | `https://hubscape-geap.web.app/api/apis` | `ctx.api_url` | `get_api_url()` | Gateway route for Modular APIs (`{API_URL}/{api_uuid}/*`). |
+| `AGENT_URL` | `https://hubscape-geap.web.app/api/agents` | `ctx.agent_url` | `get_agent_url()` | Gateway route for GEAP Agent sessions (`{AGENT_URL}/{agent_uuid}/*`). |
+
+
+---
+
 ## ✅ Development Workflow
+
 
 1. **Scaffold**: Initialize your agent repository using the standard template folder containing `agent.py`, `SKILL.md`, `pyproject.toml`, and `app/scripts/`.
 2. **Implement**: Define tool functions as standalone Python scripts inside `app/scripts/` (filenames matching functions). Docstrings and type hints build Gemini schemas automatically. Add system instructions directly to `app/SKILL.md`.

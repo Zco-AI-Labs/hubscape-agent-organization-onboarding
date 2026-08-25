@@ -49,3 +49,27 @@ def get_region() -> str:
         
     # Standard default fallback if all lookups fail
     return "us-central1"
+
+def get_base_url() -> str:
+    """Resolves the Hubscape central platform Base URL."""
+    return (
+        os.getenv("BASE_URL")
+        or os.getenv("HUBSCAPE_BASE_URL")
+        or os.getenv("HUBSCAPE_BACKEND_URL")
+        or "https://hubscape-geap.web.app"
+    ).rstrip("/")
+
+def get_api_url() -> str:
+    """Resolves the Modular API Gateway Base URL ({API_URL}/{api_uuid}/*)."""
+    env_api = os.getenv("API_URL") or os.getenv("HUBSCAPE_API_URL")
+    if env_api:
+        return env_api.rstrip("/")
+    return f"{get_base_url()}/api/apis"
+
+def get_agent_url() -> str:
+    """Resolves the Agent Gateway / A2A Base URL ({AGENT_URL}/{agent_id}/*)."""
+    env_agent = os.getenv("AGENT_URL") or os.getenv("HUBSCAPE_AGENT_URL")
+    if env_agent:
+        return env_agent.rstrip("/")
+    return f"{get_base_url()}/api/agents"
+

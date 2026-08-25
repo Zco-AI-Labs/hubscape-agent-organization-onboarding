@@ -15,7 +15,114 @@ Lego widgets are JSON files representing a tree of nested components. They must 
 
 ---
 
-## 2. Visual Sandboxed IFrames (`iframe`)
+## 2. The Atomic Viewport Model & Widget Lifecycle
+
+The Hubscape UI operates under the **Atomic Viewport Model** for all interactive widgets and forms:
+
+### 1. The Single Active Widget Principle
+> [!IMPORTANT]
+> **Only ONE interactive widget or form can be active in the viewport at a time.**
+> When an agent calls `context.show_widget()` (or returns a UI payload from a tool), the newly emitted widget mounts as the singular active interactive component in the viewport. When designing agent workflows, guide users through focused, sequential steps rather than expecting concurrent multi-form interactions.
+
+### 2. Viewport Lifecycle & Dismissal Options
+Widgets support two core submission lifecycle paradigms, alongside instant client-side cancellation and server-driven closure:
+
+| Lifecycle Mode | Trigger | Viewport Behavior | Confirmation / Message Display |
+|---|---|---|---|
+| **Optimistic Collapse** | `"closeOnClick": true` | Widget vanishes immediately (0ms) upon valid submit | Displays `submittedLabel`, `?text=...`, or `"Form submitted."` |
+| **Read-Only Receipt** *(Default)* | `"closeOnClick": false` or omitted | Form locks in place into an immutable read-only receipt | Submit button converts into green status badge; inputs disabled |
+| **Client Cancellation** | `actionUrl: "client://close_widget"` | Widget unmounts locally with **0 network / 0 LLM calls** | Displays `?text=...` (default: `"Form cancelled."`); purges draft cache |
+| **Server Tool Closure** | `context.close_widget()` in Python | Widget unmounts after backend Python tool finishes | Displays `result_text` provided by the Python tool |
+
+### 3. Full Button Configuration Example
+```json
+{
+  "type": "container",
+  "props": {
+    "className": "flex flex-col gap-4 p-4 bg-white rounded-lg border border-indigo-100 shadow-sm"
+  },
+  "children": [
+    {
+      "type": "input",
+      "props": {
+        "name": "org_name",
+        "label": "Organization Name",
+        "placeholder": "Apex Innovations",
+        "required": true
+      }
+    },
+    {
+      "type": "button",
+      "props": {
+        "label": "Submit Details",
+        "actionUrl": "agent://{{agent_id}}/save_org_details",
+        "styling": {
+          "colorTheme": "indigo"
+        },
+        "submittedLabel": "Organization Details Submitted",
+        "closeOnClick": true
+      }
+    },
+    {
+      "type": "button",
+      "props": {
+        "label": "Cancel",
+        "actionUrl": "client://close_widget?text=Form+cancelled.",
+        "styling": {
+          "colorTheme": "slate"
+        },
+        "hideOnSubmit": true
+      }
+    }
+  ]
+}
+```
+
+### 4. Zero-Data-Loss Error Re-Hydration & Sibling Disabling
+* **Client-Side Validation:** Form inputs are validated on blur and submit before any dispatch occurs, preventing bad requests from firing.
+* **In-Flight Retry Buffer:** Submissions are automatically buffered in `inFlightSubmissionRef`. If an agent tool encounters a business logic error and re-renders the form, the user's previously entered input values are automatically re-hydrated.
+* **Sibling Button Disabling:** When a user clicks a button, sibling buttons inside the widget are disabled/dimmed to prevent race conditions or duplicate submissions.
+
+---
+
+## 3. Targeted Agent Action Routing (`agent://<agent_id>/<action_name>`)
+
+For buttons triggering backend tool actions, configure `actionUrl` using the targeted URI format `agent://<agent_id>/<action_name>` (e.g. `agent://sales-onboarding-agent/save_org_details`).
+
+* **Deterministic Dispatch:** Bypasses Host LLM re-interpretation and routes straight to the owning subagent via `/action <action_name> <payload>`.
+* **Query Parameters:** Query parameters in the URL (e.g. `?text=Custom+confirmation+message`) are parsed and merged into the payload automatically.
+
+Inside a Python tool, you can process the payload and optionally trigger a programmatic close:
+
+```python
+from app.core.hubscape_adk import get_context
+
+async def submit_and_close_form(data: str) -> dict:
+    context = get_context()
+    
+    # 1. Process or save data...
+    context.save(scope="user", collection_name="submissions", doc_id="form_1", data={"info": data})
+    
+    # 2. Append close directive action (optional if not using closeOnClick)
+    context.close_widget(result_text="Form submitted successfully! Widget closing.")
+    
+    return {"status": "success"}
+```
+
+This appends the `CLOSE_AGENT_WIDGET` action directive to the response payload:
+```json
+{
+  "type": "CLOSE_AGENT_WIDGET",
+  "payload": {
+    "messageId": null,
+    "resultText": "Form submitted successfully! Widget closing."
+  }
+}
+```
+
+---
+
+## 4. Visual Sandboxed IFrames (`iframe`)
 
 For complex UIs requiring canvas interactions, dragging, or real-time editing, use the `iframe` Lego component to embed custom HTML files:
 
@@ -33,7 +140,7 @@ For complex UIs requiring canvas interactions, dragging, or real-time editing, u
 
 ---
 
-## 3. Bidirectional IFrame Communication
+## 5. Bidirectional IFrame Communication
 
 Because GEAP/ADK agent containers are sandboxed, iframes cannot directly send HTTP requests (`fetch` or `Axios`) to custom agent API routes. Instead, they communicate using standard HTML5 browser messages:
 
@@ -73,69 +180,7 @@ window.addEventListener('message', (event) => {
 
 ---
 
-## 4. Widget Closing Protocols (`client://` vs `agent://`)
-
-Lego widgets support dual-channel closure: pure client-side UI actions and agent-driven programmatic closures.
-
-### Option A: Pure Client-Side Button Action (`client://close_widget`)
-Use `client://close_widget` (or `client://dismiss`) for cancel, close, or dismiss buttons in Lego JSON widget schemas. This unmounts the widget 100% locally on the browser with **zero network requests** and zero Host LLM calls:
-
-```json
-{
-  "type": "button",
-  "props": {
-    "label": "Cancel",
-    "actionUrl": "client://close_widget?text=Form+cancelled",
-    "styling": { "colorTheme": "slate" }
-  }
-}
-```
-
-### Option B: Agent-Initiated Tool Closure & Targeted Actions (`agent://<agent_id>/<action_name>`)
-For buttons triggering backend tool actions, configure `actionUrl` using the targeted URI format `agent://<agent_id>/<action_name>` (e.g. `agent://sales-onboarding-agent/save_org_details`). This guarantees 100% deterministic routing directly to the owning subagent without Host LLM prompt ambiguity:
-
-```json
-{
-  "type": "button",
-  "props": {
-    "label": "Submit Details",
-    "actionUrl": "agent://{{agent_id}}/submit_form",
-    "styling": { "colorTheme": "blue" }
-  }
-}
-```
-
-Inside a Python tool, call `context.close_widget()` to save state and instruct the client UI to unmount:
-
-```python
-from app.core.hubscape_adk import get_context
-
-async def submit_and_close_form(data: str) -> dict:
-    context = get_context()
-    
-    # 1. Process or save data...
-    context.save(scope="user", collection_name="submissions", doc_id="form_1", data={"info": data})
-    
-    # 2. Append close directive action
-    context.close_widget(result_text="Form submitted successfully! Widget closing.")
-    
-    return {"status": "success"}
-```
-
-This appends the `CLOSE_AGENT_WIDGET` action directive to the response payload:
-```json
-{
-  "type": "CLOSE_AGENT_WIDGET",
-  "payload": {
-    "messageId": null,
-    "resultText": "Form submitted successfully! Widget closing."
-  }
-}
-```
-
----
-
-## 5. Declarative Field Validation
+## 6. Declarative Field Validation
 
 Lego form inputs (`input`, `select`, `choice-picker`) support standardized declarative validation.
 
@@ -161,7 +206,7 @@ Lego form inputs (`input`, `select`, `choice-picker`) support standardized decla
 
 ---
 
-## 6. Live Error Banners (`live-error-banner`)
+## 7. Live Error Banners (`live-error-banner`)
 
 For live-monitored tasks or background streams, render a `live-error-banner` element to provide diagnostic feedback and retry buttons:
 
@@ -181,7 +226,7 @@ For live-monitored tasks or background streams, render a `live-error-banner` ele
 
 ---
 
-## 7. Complete Component Catalog & Parameters Reference
+## 8. Complete Component Catalog & Parameters Reference
 
 For a complete reference guide detailing all 25 supported Lego UI elements (such as `container`, `text`, `table`, `tabs`, `flow-chart`, and more), complete with parameters, default values, behavior descriptions, and JSON examples for each, please refer to the:
 
@@ -190,4 +235,3 @@ For a complete reference guide detailing all 25 supported Lego UI elements (such
 ---
 
 [Next Chapter: OAuth Integration & Hubscape ADK API](CHAPTER_7_OAUTH_INTEGRATION_AND_ADK_API.md) | [Previous Chapter: Sandbox Emulation](CHAPTER_5_SANDBOX_EMULATION.md)
-
