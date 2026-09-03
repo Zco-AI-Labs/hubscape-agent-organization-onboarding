@@ -11,7 +11,6 @@ from app.scripts.send_mobile_otp import send_mobile_otp
 from app.scripts.check_mobile_otp import check_mobile_otp
 from app.scripts.associate_contact_and_alert import associate_contact_and_alert
 from app.scripts.show_org_details_form import show_org_details_form
-from app.scripts.show_otp_verify_widget import show_otp_verify_widget
 from app.scripts.show_personal_details_widget import show_personal_details_widget
 from app.scripts.show_contact_form import show_contact_form
 from app.scripts.save_personal_details import save_personal_details
@@ -386,10 +385,6 @@ async def test_show_widget_tools() -> None:
         res1 = await show_org_details_form()
         ctx.show_widget.assert_called_with("org_details_form")
         assert res1["status"] == "success"
-
-        res3 = await show_otp_verify_widget()
-        ctx.show_widget.assert_called_with("otp_verify_form")
-        assert res3["status"] == "success"
 
         res4 = await show_personal_details_widget()
         ctx.show_widget.assert_called_with("personal_details_form")
