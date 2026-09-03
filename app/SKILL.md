@@ -33,7 +33,8 @@ If the user asks to check the status of their organization/subscription (e.g., "
    - Instruct the user: "Please check your phone for the 6-digit verification code and enter it below."
    - STOP immediately and wait for the user to enter and submit the verification code in the widget. Do NOT call check_mobile_otp or check_session in this turn.
 
-3. When the user submits the verification code (Turn 3 - message starts with "/action check_mobile_otp" or provides an OTP code):
+3. When the user completes verification (Turn 3 - message starts with "Phone verification completed", "/action check_mobile_otp", or provides an OTP code):
+   - If the message starts with "Phone verification completed", call the check_otp_verification tool to confirm verification in the database.
    - You MUST call the check_mobile_otp tool with the mobile_number (from the previous turn/context) and the provided otp_code (e.g. check_mobile_otp(mobile_number="+11231231234", otp_code="123456")).
    - The check_mobile_otp tool automatically retrieves and returns the "linked_organizations" list directly in its output dictionary.
    - In your reply to the user, you MUST immediately state the status of their organization request(s) using the "linked_organizations" from the tool result:

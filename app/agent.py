@@ -21,6 +21,7 @@ from app.core.load_local_tools import load_local_tools
 # Statically import custom script/tool modules here so the Vertex AI packaging dependency analyzer
 # sees them and bundles them in the cloud deployment container/ZIP.
 from app.core.system_tools import (
+    check_otp_verification,
     consultAgent,
     discover_agents,
 )

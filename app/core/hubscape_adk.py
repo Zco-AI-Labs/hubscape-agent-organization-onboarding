@@ -48,6 +48,32 @@ class RemoteContext:
         return self.raw_context.get("user_privileges") or self.raw_context.get("userPrivileges") or []
 
     @property
+    def base_url(self) -> str:
+        return (
+            self.raw_context.get("base_url")
+            or self.raw_context.get("backend_url")
+            or os.environ.get("BASE_URL")
+            or os.environ.get("HUBSCAPE_BASE_URL")
+            or os.environ.get("HUBSCAPE_BACKEND_URL")
+            or "https://hubscape-geap.web.app"
+        ).rstrip("/")
+
+    @property
+    def api_url(self) -> str:
+        env_api = self.raw_context.get("api_url") or os.environ.get("API_URL") or os.environ.get("HUBSCAPE_API_URL")
+        if env_api:
+            return env_api.rstrip("/")
+        return f"{self.base_url}/api/apis"
+
+    @property
+    def agent_url(self) -> str:
+        env_agent = self.raw_context.get("agent_url") or os.environ.get("AGENT_URL") or os.environ.get("HUBSCAPE_AGENT_URL")
+        if env_agent:
+            return env_agent.rstrip("/")
+        return f"{self.base_url}/api/agents"
+
+
+    @property
     def _db_client(self):
         if self._db is None:
             # Try to get OAuth2 token from Metadata Server
@@ -278,8 +304,12 @@ class RemoteContext:
             with open(template_path, "r", encoding="utf-8") as f:
                 widget_config = json.load(f)
 
-            # Replacements (e.g. {{agent_id}} -> actual agent ID)
+            # Replacements (e.g. {{agent_id}} -> actual agent ID, {{data.key}} -> data values)
             config_str = json.dumps(widget_config).replace("{{agent_id}}", self.agent_id)
+            if data and isinstance(data, dict):
+                for k, v in data.items():
+                    if v is not None:
+                        config_str = config_str.replace(f"{{{{data.{k}}}}}", str(v))
             widget_config = json.loads(config_str)
 
             action_payload = {
@@ -371,9 +401,9 @@ class RemoteContext:
         import httpx
         
         is_cloud = "K_SERVICE" in os.environ or "AIP_PREDICT_PORT" in os.environ
-        backend_url = self.raw_context.get("backend_url") or os.environ.get("HUBSCAPE_BACKEND_URL")
+        backend_url = self.base_url
         
-        if not is_cloud and not backend_url:
+        if not is_cloud and not (self.raw_context.get("backend_url") or os.environ.get("BASE_URL")):
             logger.warning(
                 f"⚠️ Local Dev Bypass: Simulating OTP SMS send to {phone_number}."
             )
@@ -383,7 +413,8 @@ class RemoteContext:
                 "message": "OTP SMS send simulated for local testing. Use code '123456' to verify."
             }
             
-        url = f"{str(backend_url or 'https://hubscape-backend-w3xi4ozhca-uc.a.run.app').rstrip('/')}/api/otp/send"
+        url = f"{backend_url}/api/otp/send"
+
         headers = {}
         cap_token = self.raw_context.get("capability_token")
         if cap_token:
@@ -407,9 +438,9 @@ class RemoteContext:
         import httpx
         
         is_cloud = "K_SERVICE" in os.environ or "AIP_PREDICT_PORT" in os.environ
-        backend_url = self.raw_context.get("backend_url") or os.environ.get("HUBSCAPE_BACKEND_URL")
+        backend_url = self.base_url
         
-        if not is_cloud and not backend_url:
+        if not is_cloud and not (self.raw_context.get("backend_url") or os.environ.get("BASE_URL")):
             logger.warning(
                 f"⚠️ Local Dev Bypass: Verifying simulated OTP for {phone_number}."
             )
@@ -417,7 +448,9 @@ class RemoteContext:
                 return {"success": True, "status": "verified", "message": "Simulated OTP verified successfully."}
             return {"success": False, "status": "invalid", "message": "Simulated OTP verification failed."}
             
-        url = f"{str(backend_url or 'https://hubscape-backend-w3xi4ozhca-uc.a.run.app').rstrip('/')}/api/otp/verify"
+        url = f"{backend_url}/api/otp/verify"
+
+
         headers = {}
         cap_token = self.raw_context.get("capability_token")
         if cap_token:
@@ -434,11 +467,70 @@ class RemoteContext:
             raise RuntimeError(f"OTP verification request failed: {resp.text}")
         return resp.json()
 
+
+    def trigger_otp(
+        self,
+        phone_number: str,
+        purpose: str = "general",
+        request_id: Optional[str] = None,
+        metadata: Optional[dict] = None
+    ) -> dict:
+        """
+        Registers a TRIGGER_OTP client action directive prompting the Hubscape host/client
+        to handle OTP generation, SMS delivery, and verification UI for an unregistered user.
+        """
+        import uuid
+        correlation_id = request_id or f"otp_req_{uuid.uuid4().hex[:10]}"
+
+        # Store pending correlation token in local session state if active
+        if hasattr(self, "session") and self.session and self.session.state is not None:
+            self.session.state["pending_otp_request_id"] = correlation_id
+            self.session.state["pending_otp_phone"] = phone_number
+
+        action_payload = {
+            "type": "TRIGGER_OTP",
+            "payload": {
+                "request_id": correlation_id,
+                "phone_number": phone_number,
+                "purpose": purpose,
+                "agent_id": self.agent_id,
+                "metadata": metadata or {}
+            }
+        }
+        self.actions.append(action_payload)
+        directive_response = {
+            "directive": "execute_host_tool",
+            "target_tool": "triggerOtp",
+            "parameters": action_payload["payload"],
+            "status": "success",
+            "message": f"OTP verification process initiated for {phone_number}."
+        }
+        return directive_response
+
     async def get_oauth_token(self, provider: str) -> Optional[str]:
         """
-        Gets the active oauth access token, triggering a platform refresh if expired.
+        Gets the active oauth access token, prioritizing active session state
+        (session-scoped credentials) with fallback to user-scoped persistent database tokens.
+        Triggers a platform refresh if expired.
         """
-        token_data = self.get(scope="user", collection_name="tokens", doc_id=provider)
+        token_data = None
+
+        # 1. Priority: Check active conversation session state
+        if hasattr(self, "session") and self.session and hasattr(self.session, "state") and isinstance(self.session.state, dict):
+            tokens_map = self.session.state.get("tokens", {})
+            if isinstance(tokens_map, dict) and provider in tokens_map:
+                token_data = tokens_map[provider]
+            elif self.session.state.get(f"{provider}_token"):
+                token_data = self.session.state.get(f"{provider}_token")
+            elif self.session.state.get(f"{provider}_access_token"):
+                token_data = {"access_token": self.session.state.get(f"{provider}_access_token")}
+            elif self.session.state.get("access_token") and provider in ("mopl", "default"):
+                token_data = {"access_token": self.session.state.get("access_token")}
+
+        # 2. Priority: Fall back to persistent user-scoped database tokens collection ONLY if not running within a session
+        if not token_data and (not hasattr(self, "session") or not self.session):
+            token_data = self.get(scope="user", collection_name="tokens", doc_id=provider)
+
         if not token_data:
             return None
 
@@ -476,16 +568,19 @@ class RemoteContext:
 
     def oauth_start(self, openid_configuration: str) -> dict:
         """Triggers the platform OAuth authentication challenge payload."""
+        payload = {
+            "openid_configuration": openid_configuration,
+            "agent_id": self.agent_id
+        }
+        if not openid_configuration.startswith("http"):
+            payload["provider"] = openid_configuration
         return {
             "status": "error",
             "message": "Authorization required.",
             "error_type": "AUTH_REQUIRED",
             "system_action": {
                 "type": "TRIGGER_OAUTH",
-                "payload": {
-                    "openid_configuration": openid_configuration,
-                    "agent_id": self.agent_id
-                }
+                "payload": payload
             }
         }
 
@@ -535,6 +630,31 @@ def get_context() -> RemoteContext:
             "No active RemoteContext found. "
             "Ensure the tool is executed inside an active context_session."
         )
+
+def get_base_url() -> str:
+    """Returns the platform base URL."""
+    try:
+        return get_context().base_url
+    except Exception:
+        from app.app_utils.env_resolver import get_base_url as _resolve_base_url
+        return _resolve_base_url()
+
+def get_api_url() -> str:
+    """Returns the Modular API gateway base URL ({API_URL}/{api_uuid}/*)."""
+    try:
+        return get_context().api_url
+    except Exception:
+        from app.app_utils.env_resolver import get_api_url as _resolve_api_url
+        return _resolve_api_url()
+
+def get_agent_url() -> str:
+    """Returns the Agent gateway / A2A base URL ({AGENT_URL}/{agent_id}/*)."""
+    try:
+        return get_context().agent_url
+    except Exception:
+        from app.app_utils.env_resolver import get_agent_url as _resolve_agent_url
+        return _resolve_agent_url()
+
 
 @contextlib.contextmanager
 def context_session(context: RemoteContext) -> Generator[None, None, None]:

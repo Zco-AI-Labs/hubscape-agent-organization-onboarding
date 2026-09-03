@@ -549,6 +549,20 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
                         "message": interceptor.accumulated_text or "Call ended."
                     }
                     break
+                                elif atype == "TRIGGER_OTP":
+                    directive_payload = {
+                        "directive": "execute_host_tool",
+                        "target_tool": "triggerOtp",
+                        "parameters": {
+                            "request_id": payload.get("request_id"),
+                            "phone_number": payload.get("phone_number"),
+                            "purpose": payload.get("purpose", "general"),
+                            "agent_id": payload.get("agent_id") or getattr(context, "agent_id", "unknown"),
+                            "metadata": payload.get("metadata") or {}
+                        },
+                        "message": interceptor.accumulated_text or "Initiating phone verification."
+                    }
+                    break
                 elif atype == "CLOSE_AGENT_WIDGET":
                     directive_payload = {
                         "directive": "execute_host_tool",
@@ -652,7 +666,7 @@ class AgentEngineApp(A2aAgent):
         if privileges_data:
             extensions.append(
                 AgentExtension(
-                    uri="https://hubscape.io/extensions/privileges",
+                    uri="https://hubscape-geap.web.app/extensions/privileges",
                     description="Workspace role-based privileges matrix",
                     params=privileges_data
                 )
@@ -757,7 +771,7 @@ class AgentEngineApp(A2aAgent):
         privileges_data = _load_privileges_without_tools()
         if privileges_data:
             extensions.append({
-                "uri": "https://hubscape.io/extensions/privileges",
+                "uri": "https://hubscape-geap.web.app/extensions/privileges",
                 "description": "Workspace role-based privileges matrix",
                 "params": privileges_data
             })
