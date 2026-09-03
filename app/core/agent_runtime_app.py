@@ -549,7 +549,7 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
                         "message": interceptor.accumulated_text or "Call ended."
                     }
                     break
-                                elif atype == "TRIGGER_OTP":
+                elif atype == "TRIGGER_OTP":
                     directive_payload = {
                         "directive": "execute_host_tool",
                         "target_tool": "triggerOtp",
