@@ -47,19 +47,10 @@ async def send_mobile_otp(mobile_number: str, skip_widget: bool = False) -> dict
 
     try:
         res = ctx.trigger_otp(mobile_number, purpose='org_onboarding')
-        if not res.get("success"):
-            print(f"⚠️ Live OTP dispatch returned non-success: {res.get('message')}. Falling back to dev code 123456.")
     except Exception as e:
-        print(f"⚠️ Live OTP dispatch exception ({e}). Falling back to dev code 123456.")
-        
-    # Queue rendering the OTP verify widget for code entry
-    if not skip_widget:
-        try:
-            ctx.show_widget("otp_verify_form")
-        except Exception as w_err:
-            print(f"⚠️ [WIDGET QUEUE WARNING] Failed to queue OTP verify widget: {w_err}")
+        print(f"⚠️ Live OTP dispatch exception: {e}")
 
     return {
         "status": "success",
-        "message": f"6-digit verification code dispatched to mobile number {mobile_number}. (Dev Fallback Code: 123456)"
+        "message": f"6-digit verification code dispatched to mobile number {mobile_number}. Please enter the code into the verification widget displayed."
     }

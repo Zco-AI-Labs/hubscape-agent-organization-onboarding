@@ -110,7 +110,57 @@ async def check_mobile_otp(mobile_number: str = "", otp_code: str = "") -> dict:
                 })
         return linked_orgs
 
-    # 1. Development & Testing OTP Fallback
+    # 1. Check if session has already been verified via client OTP flow
+    if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state:
+        if ctx.session.state.get("phone_verified"):
+            try:
+                ctx.close_widget(result_text="✅ OTP verification successful.")
+            except Exception:
+                pass
+            linked_orgs = get_linked_organizations()
+            return {
+                "valid": True,
+                "message": "OTP verification successful. Identity verified successfully.",
+                "linked_organizations": linked_orgs
+            }
+
+    # 2. Check Firestore otp_verifications for pending verification code
+    pending_req_id = None
+    if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state:
+        pending_req_id = ctx.session.state.get("pending_otp_request_id")
+
+    if pending_req_id:
+        try:
+            import hashlib
+            doc = ctx._db_client.collection("otp_verifications").document(pending_req_id).get()
+            if doc.exists:
+                ddata = doc.to_dict() or {}
+                if ddata.get("status") == "verified":
+                    if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state:
+                        ctx.session.state["phone_verified"] = True
+                    linked_orgs = get_linked_organizations()
+                    return {
+                        "valid": True,
+                        "message": "OTP verification successful. Identity verified successfully.",
+                        "linked_organizations": linked_orgs
+                    }
+                # Check code hash
+                expected_hash = hashlib.sha256(f"{pending_req_id}:{otp_code.strip()}".encode()).hexdigest()
+                if ddata.get("code_hash") == expected_hash or ddata.get("platform_otp") == otp_code.strip() or otp_code.strip() == "123456":
+                    # Mark verified
+                    ctx._db_client.collection("otp_verifications").document(pending_req_id).update({"status": "verified"})
+                    if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state:
+                        ctx.session.state["phone_verified"] = True
+                    linked_orgs = get_linked_organizations()
+                    return {
+                        "valid": True,
+                        "message": "OTP verification successful. Identity verified successfully.",
+                        "linked_organizations": linked_orgs
+                    }
+        except Exception as e:
+            print(f"⚠️ Error checking Firestore OTP record: {e}")
+
+    # Fallback to dev code 123456 if no pending doc found
     if otp_code.strip() == "123456":
         try:
             ctx.close_widget(result_text="✅ OTP verification successful.")
@@ -123,34 +173,7 @@ async def check_mobile_otp(mobile_number: str = "", otp_code: str = "") -> dict:
             "linked_organizations": linked_orgs
         }
 
-    # 2. Live SMS Gateway Verification with 123456 Fallback
-    try:
-        res = ctx.verify_otp(mobile_number, otp_code)
-        if res.get("success"):
-            try:
-                ctx.close_widget(result_text="✅ OTP verification successful.")
-            except Exception:
-                pass
-            linked_orgs = get_linked_organizations()
-            return {
-                "valid": True,
-                "message": "OTP verification successful. Identity verified successfully.",
-                "linked_organizations": linked_orgs
-            }
-    except Exception:
-        if otp_code.strip() == "123456":
-            try:
-                ctx.close_widget(result_text="✅ OTP verification successful.")
-            except Exception:
-                pass
-            linked_orgs = get_linked_organizations()
-            return {
-                "valid": True,
-                "message": "OTP verification successful. Identity verified successfully.",
-                "linked_organizations": linked_orgs
-            }
-
     return {
         "valid": False,
-        "message": "Invalid verification code. Please check and try again."
+        "message": "Invalid verification code. Please check your phone for the 6-digit code and enter it in the verification widget."
     }

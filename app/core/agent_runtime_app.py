@@ -472,7 +472,23 @@ class AgentEngineA2aExecutor(A2aAgentExecutor):
         has_actions = bool(remote_ctx.actions)
         if has_actions:
             directive_payload = {}
-            for action in remote_ctx.actions:
+            # Prioritize interactive and modal triggers over widget dismissals
+            priority_order = {
+                "TRIGGER_OTP": 0,
+                "OPEN_AGENT_WIDGET": 1,
+                "OPEN_ADMIN_WIDGET": 2,
+                "SWITCH_HUB": 3,
+                "OPEN_EXTERNAL_LINK": 4,
+                "REFRESH_TOKEN": 5,
+                "END_CALL": 6,
+                "SET_SUGGESTIONS": 7,
+                "CLOSE_AGENT_WIDGET": 8,
+            }
+            sorted_actions = sorted(
+                remote_ctx.actions,
+                key=lambda a: priority_order.get(a.get("type"), 99)
+            )
+            for action in sorted_actions:
                 atype = action.get("type")
                 payload = action.get("payload") or {}
                 if atype == "OPEN_AGENT_WIDGET":

@@ -123,36 +123,29 @@ async def save_personal_details(
 
         ctx.save(scope="platform", collection_name="leads", doc_id=org_id, data=lead)
 
-    # Close active contact details form widget
+    # Save mobile number in session state & trigger client OTP if provided
+    if mobile_number:
+        if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
+            ctx.session.state["pending_mobile"] = mobile_number
+            ctx.session.state["active_org_id"] = org_id
+
+        # Trigger client-managed OTP flow (emits TRIGGER_OTP directive)
+        try:
+            ctx.trigger_otp(mobile_number, purpose="org_onboarding", metadata={"org_id": org_id, "contact_name": full_name})
+        except Exception as e:
+            print(f"⚠️ Failed to trigger OTP: {e}")
+
+        return {
+            "status": "success",
+            "org_id": org_id,
+            "message": f"Contact details saved for '{full_name}'. Please verify your mobile number {mobile_number} using the verification widget displayed."
+        }
+
+    # Close active contact details form widget if no mobile provided
     try:
         ctx.close_widget(result_text=f"✅ Contact details for '{full_name}' saved successfully.")
     except Exception as e:
         print(f"⚠️ [WIDGET CLOSE WARNING] Failed to close active widget: {e}")
-
-    # Save mobile number in session state & trigger OTP if provided
-    if mobile_number:
-        if hasattr(ctx, "session") and ctx.session and hasattr(ctx.session, "state") and ctx.session.state is not None:
-            ctx.session.state["pending_mobile"] = mobile_number
-            
-        # Send OTP
-        try:
-            res = ctx.send_otp(mobile_number)
-            if not res.get("success"):
-                print(f"⚠️ Live OTP dispatch returned non-success: {res.get('message')}. Falling back to dev code 123456.")
-        except Exception as e:
-            print(f"⚠️ Live OTP dispatch exception ({e}). Falling back to dev code 123456.")
-            
-        # Show OTP verify widget
-        try:
-            ctx.show_widget("otp_verify_form")
-        except Exception as w_err:
-            print(f"⚠️ [WIDGET QUEUE WARNING] Failed to queue OTP verify widget: {w_err}")
-            
-        return {
-            "status": "success",
-            "org_id": org_id,
-            "message": f"Contact details saved. Verification code dispatched to {mobile_number}."
-        }
 
     # Queue rendering the summary card widget (for old fallback / no mobile cases)
     summary_data = {
